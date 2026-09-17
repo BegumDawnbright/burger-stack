@@ -112,6 +112,11 @@
     -webkit-text-fill-color:transparent}
   .screen p{font-size:15px;line-height:1.55;opacity:.85;max-width:320px}
   .screen b{color:#ffd86b}
+  #modeSel{display:flex;gap:10px;pointer-events:auto;margin-top:4px}
+  .mbtn{background:rgba(255,255,255,.10);color:#fff;border:2px solid rgba(255,255,255,.25);
+    border-radius:13px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer}
+  .mbtn.on{background:linear-gradient(180deg,#ffd063,#f0902f);color:#40210a;
+    border-color:#ffe6a8;box-shadow:0 4px 0 #b9651c}
   .btn{pointer-events:auto;margin-top:6px;background:linear-gradient(180deg,#ffd063,#f0902f);
     color:#40210a;border:none;border-radius:16px;padding:15px 38px;font-size:19px;
     font-weight:900;box-shadow:0 7px 0 #b9651c,0 12px 22px rgba(0,0,0,.4);cursor:pointer}
@@ -169,6 +174,10 @@
      Malzemeyi <b>alttaki kutulardan</b> tutup tezgaha sürükle.<br><br>
      Ortaya ve <b>alçaktan</b> bırak — kenardan ya da yüksekten bırakırsan kule sallanır ve devrilir.</p>
   <div class="statline" id="startBest"></div>
+  <div id="modeSel">
+    <button class="mbtn" data-m="drag">🖐 SÜRÜKLE</button>
+    <button class="mbtn" data-m="throw">🎯 FIRLAT</button>
+  </div>
   <button class="btn" id="startBtn">VARDİYAYI BAŞLAT</button>
 </div>
 
@@ -256,6 +265,7 @@ const S = {
   drag:null,            // {mesh, ing, key}
   unlocked:[],
   orderName:'',
+  mode:'drag',          // 'drag' = sürükle-bırak, 'throw' = fırlat
   phase:'build',        // build | carry
   base:{x:BUILD.x, y:0, z:BUILD.z},   // tabağın konumu
   baseT:{x:BUILD.x, y:0, z:BUILD.z},  // parmağın gösterdiği hedef (tabak buraya hız sınırıyla gider)
@@ -1128,7 +1138,7 @@ function onDown(e){
   shelfSlots.forEach(s=>{
     if(!s.key || !s.group.visible) return;
     const p = s.group.position.clone();
-    p.y += 0.5;
+    p.y += 0.15;                 // kutunun gerçek yeri (eski yan raflarda 0.5'ti)
     p.project(camera);
     const dx = (p.x - pointer.x)*innerWidth*0.5;
     const dy = (p.y - pointer.y)*innerHeight*0.5;
@@ -1244,8 +1254,8 @@ function onUp(e){
   }
   if(!S.drag) return;
   const dm = S.drag.mesh, key = S.drag.key;
-  scene.remove(dm);
   ptrActive = false;
+  if(S.mode !== 'throw') scene.remove(dm);
   const dropX = dm.position.x, dropY = dm.position.y;
   const drg = S.drag; S.drag = null;
   const throwV = drg.vx || 0;          // bırakma anındaki yatay savrulma hızı
@@ -1253,7 +1263,19 @@ function onUp(e){
   if(!S.playing || S.collapsing>0) return;
   // hâlâ kutuların üstündeyken bırakıldıysa malzeme geri konur
   if((drg.t || 0) < 0.3) return;
-  if(S.step >= S.order.length) return;
+
+  // FIRLAT modu: savurup bıraktığında malzeme havada uçar
+  if(S.mode === 'throw'){
+    const hiz = Math.hypot(drg.vx||0, drg.vy||0);
+    if(hiz > 1.2){ firlat(key, dm, drg.vx, drg.vy); return; }
+  }
+  if(S.mode === 'throw') scene.remove(dm);
+  yerlestir(key, dropX, dropY, throwV);
+}
+
+// Bir malzemeyi kuleye yerleştirir (sürükleyip bırakma ya da fırlatma sonrası iniş).
+function yerlestir(key, dropX, dropY, throwV){
+  if(!S.playing || S.collapsing>0) return;
 
   // tezgah bırakma alanı dışı → iptal
   if(Math.abs(dropX - BUILD.x) > 1.5){ return; }
@@ -1439,7 +1461,7 @@ function loop(now){
     r.style.top  = ((-p.y*0.5+0.5)*innerHeight) + 'px';
   }
 
-  if(!S.paused){ stepDebris(dt); stepParticles(dt); }
+  if(!S.paused){ stepDebris(dt); stepParticles(dt); stepFlying(dt); }
 
   // elde tutulan malzeme: parmağı gecikmeyle takip eder, hıza göre eğilip sallanır
   if(S.drag && S.drag.init && !S.paused && dt > 0){
@@ -1551,6 +1573,49 @@ function animateShelves(now){
   });
 }
 
+/* ---------------------------- FIRLATMA ------------------------------ */
+// FIRLAT modunda malzeme savrulup bırakılır, havada uçar ve kuleye iner.
+const FLY_G = 20;                 // fırlatma yerçekimi
+let flying = [];
+
+function firlat(key, mesh, vx, vy){
+  // Parmak hızı doğrudan aktarılırsa malzeme tezgahı aşıyor:
+  // yatayı kıs, dikeyi biraz düşür ve ikisini de sınırla.
+  const hx = THREE.MathUtils.clamp((vx||0) * 0.45, -3.2, 3.2);
+  const hy = THREE.MathUtils.clamp((vy||0) * 0.80,  0.5, 10.5);
+  flying.push({key, mesh, vx:hx, vy:hy, z:mesh.position.z,
+               spin:(Math.random()-0.5)*7});
+  sfx('place');
+}
+
+function stepFlying(dt){
+  for(let i=flying.length-1; i>=0; i--){
+    const f = flying[i], m = f.mesh;
+    f.vy -= FLY_G*dt;
+    m.position.x += f.vx*dt;
+    m.position.y += f.vy*dt;
+    f.z += (BUILD.z - f.z)*Math.min(1, dt*4);    // uçarken tezgah düzlemine yerleşir
+    m.position.z = f.z;
+    m.rotation.z += f.spin*dt;
+    m.rotation.x += f.spin*0.4*dt;
+
+    const hedefY = stackTopY() + ING[f.key].h*0.5;
+    // iniş penceresi tahtadan geniş: atış tutmuyorsa oyun sinir bozucu oluyor.
+    // Yine de tam ortayı tutturmak önemli, çünkü sapma kuleye kaçık oturuyor.
+    if(f.vy < 0 && m.position.y <= hedefY && Math.abs(m.position.x - BUILD.x) < 2.2){
+      scene.remove(m); flying.splice(i,1);
+      const dusus = Math.min(2.4, (f.vy*f.vy)/(2*FLY_G));   // iniş hızı = darbe
+      yerlestir(f.key, m.position.x, hedefY + dusus, f.vx);
+      continue;
+    }
+    if(m.position.y < -2.6 || Math.abs(m.position.x) > 5.5){
+      scene.remove(m); flying.splice(i,1);
+      toast('IŞKA!', '#ff6b6b'); sfx('error');
+      S.patience = Math.max(0, S.patience - 0.10);
+    }
+  }
+}
+
 /* --------------------------- EFEKT / SES ---------------------------- */
 function setHint(txt){
   const h = document.getElementById('hint');
@@ -1633,7 +1698,10 @@ function startGame(){
   document.getElementById('startScreen').classList.add('hide');
   document.getElementById('endScreen').classList.add('hide');
   document.getElementById('pauseScreen').classList.add('hide');
-  setHint('Malzemeyi tut, tezgaha sürükle, bırak');
+  setHint(S.mode === 'throw'
+    ? 'Malzemeyi tut ve tezgaha doğru SAVUR — havada uçup kuleye iner'
+    : 'Malzemeyi tut, tezgaha sürükle, bırak');
+  flying.forEach(f=>scene.remove(f.mesh)); flying = [];
   updateHUD();
   spawnCustomer();
 }
@@ -1792,6 +1860,20 @@ addEventListener('pointerdown', onDown);
 addEventListener('pointermove', onMove);
 addEventListener('pointerup', onUp);
 addEventListener('pointercancel', onUp);
+function modeUI(){
+  document.querySelectorAll('.mbtn').forEach(b=>
+    b.classList.toggle('on', b.dataset.m === S.mode));
+}
+try{ S.mode = localStorage.getItem('burgerStackMode') || 'drag'; }catch(e){}
+document.querySelectorAll('.mbtn').forEach(b=>{
+  b.onclick = ()=>{
+    S.mode = b.dataset.m;
+    try{ localStorage.setItem('burgerStackMode', S.mode); }catch(e){}
+    modeUI();
+  };
+});
+modeUI();
+
 document.getElementById('startBtn').onclick = startGame;
 document.getElementById('againBtn').onclick = startGame;
 
