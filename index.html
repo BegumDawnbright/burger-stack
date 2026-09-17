@@ -203,7 +203,7 @@ const CFG = {
   perfectBonus: 12,     // mükemmel yerleştirme başına
   comboStep : 0.25,     // her ardışık serviste çarpan artışı
   comboMax  : 3.0,
-  carrySpeed: 2.2,      // tabağın en fazla hareket hızı (birim/sn) — savrulmanın kaynağı
+  carrySpeed: 6.5,      // tabak parmağı yakından takip etsin; savrulma hızdan değil İVMEDEN doğar
   carryDamp : 1.35,       // taşırken ekstra sönümleme
   carryTopple:0.8,       // taşırken devirici tork çarpanı
   shakeSpeed: 7.5,      // kurarken tabağı elle sallama hızı (hızlı → sert savrulma)
@@ -713,6 +713,15 @@ function makeOrder(){
   const has = k => S.unlocked.includes(k);
   const pool = FILLERS.filter(has);
   const cands = [];
+
+  // 1. müşteri: kısa ve öğretici. 2. müşteri: doğrudan dev kule.
+  if(n === 1) return {name:'Klasik', items:['bunB','patty','cheese','bunT']};
+  if(n === 2){
+    const items = ['bunB'];
+    for(let i=0;i<8;i++) items.push(i%2 ? 'cheese' : 'patty');
+    items.push('bunT');
+    return {name:'Dev Kule', items};
+  }
 
   // Siparişler uzun: asıl zorluk yüksek kuleyi devirmeden kurup taşımak
   cands.push({name:'Klasik', items:['bunB','patty','cheese','patty','cheese','bunT'],
@@ -1324,7 +1333,12 @@ function loop(now){
 
     // taşıma: tabak müşterinin kafası hizasına kaldırıldı mı
     if(S.phase==='carry' && S.layers.length && !S.collapsing){
-      if(S.base.y >= LIFT.needH && Math.abs(S.base.x - S.custX) < LIFT.xTol) serve();
+      // müşteri tabağı ancak kule DENGEDEYKEN alır: sert savurup yukarı fırlatmak yetmez
+      const sabit = S.danger < 0.85 && Math.abs(S.baseV.y) < 2.4;
+      if(S.base.y >= LIFT.needH && Math.abs(S.base.x - S.custX) < LIFT.xTol){
+        if(sabit) serve();
+        else setHint('Sabit tut! Kule sallanırken müşteri almıyor');
+      }
     }
 
     if(S.collapsing>0){
