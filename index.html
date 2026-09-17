@@ -25,6 +25,9 @@
   #comboChip{background:linear-gradient(180deg,rgba(255,150,40,.85),rgba(220,70,40,.85));
     color:#fff;font-size:14px}
   .spacer{flex:1}
+  /* mod düğmesi ikinci satırda: dar telefonlarda üst çubuğu taşırmasın */
+  .topbar2{display:flex;justify-content:flex-end;gap:8px;padding:0 12px}
+  #modeBtn{font-size:17px;padding:6px 11px}
   .ibtn{pointer-events:auto;border:none;cursor:pointer;font-size:15px;padding:7px 10px}
 
   /* order bubble */
@@ -50,7 +53,7 @@
     transition:width .12s linear,background .3s}
 
   /* kamera ayar paneli (geliştirme) */
-  #campanel{position:fixed;right:8px;top:58px;width:200px;z-index:20;pointer-events:auto;
+  #campanel{position:fixed;right:8px;top:106px;width:200px;z-index:20;pointer-events:auto;
     max-height:74vh;overflow:auto;
     background:rgba(20,12,26,.92);border:1px solid rgba(255,255,255,.18);border-radius:12px;
     padding:9px 10px;color:#fff;font-size:11px;display:flex;flex-direction:column;gap:5px;
@@ -64,7 +67,7 @@
     padding:6px;font-weight:800;cursor:pointer;font-size:11px}
   #campanel .cprow button{background:none;color:#fff;font-size:16px;padding:0 4px}
   #campanel span{color:#ffd063;font-weight:800}
-  #camBtn{position:fixed;right:8px;top:58px;z-index:19;pointer-events:auto;
+  #camBtn{position:fixed;right:8px;top:106px;z-index:19;pointer-events:auto;
     background:rgba(20,12,26,.8);color:#fff;border:1px solid rgba(255,255,255,.2);
     border-radius:50%;width:38px;height:38px;font-size:17px;cursor:pointer}
   #camBtn.hide{display:none}
@@ -134,9 +137,12 @@
     <div class="chip"><small>SKOR</small><span id="scoreVal">0</span></div>
     <div class="chip" id="comboChip" style="display:none">🔥 <span id="comboVal">x1</span></div>
     <div class="spacer"></div>
-    <div class="chip"><span id="lives">❤❤❤</span></div>
+    <button class="chip ibtn" id="livesChip" title="Sınırsız can (test)"><span id="lives">❤❤❤</span></button>
     <button class="chip ibtn" id="muteBtn">🔊</button>
     <button class="chip ibtn" id="pauseBtn">⏸</button>
+  </div>
+  <div class="topbar2">
+    <button class="chip ibtn" id="modeBtn">🖐</button>
   </div>
   <div id="orderWrap" style="opacity:0">
     <div id="bubble"></div>
@@ -170,9 +176,10 @@
 <div class="screen" id="startScreen">
   <h1>BURGER STACK</h1>
   <p>Müşterinin siparişini <b>istediğin sırada</b> koy — adetler tutsun yeter.
-     Alt ekmek en altta, üst ekmek en üstte.
      Malzemeyi <b>alttaki kutulardan</b> tutup tezgaha sürükle.<br><br>
-     Ortaya ve <b>alçaktan</b> bırak — kenardan ya da yüksekten bırakırsan kule sallanır ve devrilir.</p>
+     İstersen <b>yanlış ya da eksik</b> de yapabilirsin: hiçbir şey engellenmez,
+     fazladan ve eksik malzemenin bedeli servis anında puandan düşer.<br><br>
+     Malzemeyi <b>ortaya</b> bırak — kenardan bırakırsan kule yamulur ve devrilir.</p>
   <div class="statline" id="startBest"></div>
   <div id="modeSel">
     <button class="mbtn" data-m="drag">🖐 SÜRÜKLE</button>
@@ -233,6 +240,8 @@ const CFG = {
   slipVel   : 1.1,      // katmanlar arası göreli hız bunu aşarsa malzeme kayar
   slipRate  : 0.55,     // kaymanın kalıcı sapmaya dönüşme oranı (düşük grip = daha çok)
 };
+// FIRLAT modunda tutulan malzeme kutudan ne kadar kalkar / kameraya ne kadar yaklaşır
+const THROW_HOLD = {y:0.95, z:0.55};
 const BUILD   = {x:0, z:0.35};   // burgerin kurulduğu tahta
 const DELIVER = {z:-1.05, r:0.8};// teslim noktası (müşterinin x'i)
 // müşterinin kafası: -0.30 + 1.52*1.45 ≈ 1.90. Tabak buraya kaldırılmalı.
@@ -249,9 +258,16 @@ const ING = {
   tomato:{name:'Domates',   col:0xcf2f22, col2:0xe86558, h:0.16, grip:0.46, soft:0.72, size:0.82, unlock:5, kind:'tomato'},
   onion :{name:'Soğan',     col:0xb87ac9, col2:0xdcb6e6, h:0.14, grip:0.60, soft:0.50, size:0.64, unlock:8, kind:'ring'},
   bacon :{name:'Pastırma',  col:0xa8443a, col2:0xd9a293, h:0.11, grip:0.95, soft:0.45, size:0.88, unlock:11,kind:'strip'},
+  // --- SOSLAR: ince, yapışkan (grip yüksek) katmanlar. Zamanla açılırlar. ---
+  ketchup:{name:'Ketçap',   col:0xd8342c, col2:0xf05a48, h:0.09, grip:1.45, soft:0.22, size:0.98, unlock:2, kind:'sauce'},
+  mayo  :{name:'Mayonez',   col:0xf7f0d2, col2:0xfffbe8, h:0.09, grip:1.40, soft:0.24, size:0.98, unlock:4, kind:'sauce'},
+  mustard:{name:'Hardal',   col:0xf0c020, col2:0xffe06a, h:0.08, grip:1.50, soft:0.20, size:0.94, unlock:7, kind:'sauce'},
+  bbq   :{name:'Barbekü',   col:0x8a4520, col2:0xbe7038, h:0.09, grip:1.35, soft:0.26, size:0.98, unlock:10,kind:'sauce'},
+  chili :{name:'Acı Sos',   col:0xe0442a, col2:0xff7a3c, h:0.08, grip:1.55, soft:0.20, size:0.92, unlock:13,kind:'sauce'},
   bunT : {name:'Üst Ekmek', col:0xc98b47, col2:0xe9d09a, h:0.42, grip:1.00, soft:0.45, size:1.00, unlock:0, kind:'bunT'},
 };
 const FILLERS = ['patty','cheese','lettuce','tomato','onion','bacon'];
+const SAUCES  = ['ketchup','mayo','mustard','bbq','chili'];
 
 /* ------------------------------ DURUM ------------------------------- */
 const S = {
@@ -273,6 +289,7 @@ const S = {
   carrying:false,
   combo:0, perfects:0,
   custX:0,
+  godMode:false,      // test: sınırsız can
 };
 
 /* ------------------------------ SAHNE ------------------------------- */
@@ -557,6 +574,30 @@ function mkIngMesh(key, scale=1){
       inner.rotation.x = Math.PI/2; inner.scale.y = 0.8; inner.position.y = -0.01; m.add(inner);
       break;}
 
+    /* --- sos: düzensiz kenarlı ince gölcük + üstte fışkırtma izi --- */
+    case 'sauce':{
+      m = new THREE.Group();
+      const pool = new THREE.Mesh(new THREE.CylinderGeometry(0.64,0.68,d.h,26), mat);
+      m.add(pool);
+      // kenardan taşan damlalar → her sos biraz farklı görünür
+      for(let i=0;i<8;i++){
+        const a = i/8*Math.PI*2 + Math.random()*0.3;
+        const r = 0.58 + Math.random()*0.16;
+        const blob = new THREE.Mesh(new THREE.SphereGeometry(0.15,8,6), mat);
+        blob.scale.set(1, d.h*2.4, 1);
+        blob.position.set(Math.cos(a)*r, 0, Math.sin(a)*r);
+        m.add(blob);
+      }
+      // üstte sıkma izi (zikzak) — parlak ton
+      for(let i=0;i<9;i++){
+        const t = i/8, a = t*Math.PI*2.6;
+        const seg = new THREE.Mesh(new THREE.SphereGeometry(0.075,7,6), mat2);
+        seg.scale.set(1, 0.7, 1);
+        seg.position.set(Math.cos(a)*(0.12+t*0.38), d.h*0.55, Math.sin(a)*(0.12+t*0.38));
+        m.add(seg);
+      }
+      break;}
+
     /* --- pastırma: dalgalı, yağ damarlı şeritler --- */
     case 'strip':{
       m = new THREE.Group();
@@ -591,9 +632,17 @@ function mkIngMesh(key, scale=1){
 // 6 malzemeye kadar 3 sütun (3x2), daha fazlasında 4 sütun (4x2).
 // ön sıra kameraya daha yakın olduğu için ekranda daha geniş görünür → aralığı daha dar
 const GRID = {
-  zBack:1.92, zFront:2.98, y:-0.96,
-  3:{back:1.10, front:0.95, tray:0.95, item:0.40},
-  4:{back:0.84, front:0.72, tray:0.72, item:0.31},
+  y:-0.96,
+  tilt:0.26,   // kutular kameraya doğru yatar → içindeki malzeme rahat görünür
+  rowZ:{2:[2.55, 3.62], 3:[2.25, 3.02, 3.84]},   // kutular tezgahtan uzakta, kameraya yakın
+  // cols x rows → sütun aralığı (arka sıra), kutu ölçeği, malzeme ölçeği
+  layouts:[
+    {max:6,  cols:3, rows:2, gap:1.14, tray:0.90, item:0.40},
+    {max:8,  cols:4, rows:2, gap:0.86, tray:0.69, item:0.31},
+    {max:12, cols:4, rows:3, gap:0.86, tray:0.68, item:0.30},
+    {max:15, cols:5, rows:3, gap:0.70, tray:0.54, item:0.24},
+    {max:18, cols:6, rows:3, gap:0.59, tray:0.46, item:0.20},
+  ],
 };
 
 // açık üstlü derin kutu (malzemeler bunun içinde durur)
@@ -617,7 +666,7 @@ function mkBin(){
 }
 
 function buildShelves(){
-  for(let i=0;i<8;i++){
+  for(let i=0;i<14;i++){
     const g = new THREE.Group();
     const bin = mkBin();
     g.add(bin);
@@ -627,18 +676,21 @@ function buildShelves(){
   }
 }
 
-// n malzeme için grid konumları (ön sıra ekranda daha altta görünür)
+// n malzeme için grid konumları. Ön sıra kameraya yakın olduğu için ekranda
+// daha geniş görünür → yaklaştıkça sütun aralığı daralır.
 function gridSpots(n){
-  const cols = n <= 6 ? 3 : 4;
-  const G = GRID[cols];
-  const back = Math.ceil(n/2), front = n - back;
+  const L = GRID.layouts.find(l => n <= l.max) || GRID.layouts[GRID.layouts.length-1];
+  const rows = L.rows, zs = GRID.rowZ[rows];
+  // sıralara dengeli dağıt, artanlar arka sıralara
+  const counts = new Array(rows).fill(Math.floor(n/rows));
+  for(let i=0;i<n % rows;i++) counts[i]++;
   const spots = [];
-  const row = (count, z, gap)=>{
-    for(let c=0;c<count;c++)
-      spots.push({x:(c-(count-1)/2)*gap, y:GRID.y, z, tray:G.tray, item:G.item});
-  };
-  row(back,  GRID.zBack,  G.back);
-  row(front, GRID.zFront, G.front);
+  for(let r=0;r<rows;r++){
+    const gap = L.gap * (1 - 0.15*(rows>1 ? r/(rows-1) : 0));
+    const c = counts[r];
+    for(let i=0;i<c;i++)
+      spots.push({x:(i-(c-1)/2)*gap, y:GRID.y, z:zs[r], tray:L.tray, item:L.item});
+  }
   return spots;
 }
 
@@ -654,12 +706,21 @@ function layoutShelves(){
     if(!s || !sp) return;
     s.key = k; s.group.visible = true;
     s.group.position.set(sp.x, sp.y, sp.z);
-    s.bin.scale.set(sp.tray, 1, sp.tray);
+    s.group.rotation.x = GRID.tilt;   // ağzı kameraya dönük dursun
+    // kutu her yönde aynı oranda küçülür: grid sıkışınca duvarlar da alçalır,
+    // yoksa sabit yükseklikteki duvar küçük malzemeyi tamamen gizliyor
+    s.bin.scale.setScalar(sp.tray);
     const m = mkIngMesh(k, sp.item);
-    m.position.y = 0.05 + ING[k].h*sp.item*0.5;   // kutunun tabanına otur
+    // ketçap/peynir gibi ince malzemeler vitrinde kaybolmasın diye dikey abartı
+    const gerdir = THREE.MathUtils.clamp(0.17 / ING[k].h, 1, 3.0);
+    m.scale.y *= gerdir;
+    const hGor = ING[k].h * sp.item * gerdir;     // ekrandaki görünen kalınlık
+    const kenar = 0.32 * sp.tray;                 // kutu kenarının üst hizası
+    m.position.y = kenar + hGor*0.25;             // dörtte üçü kenarın üstünde kalsın
+    s.rimY = sp.y + kenar;                        // dünya koordinatında kenar hizası
     s.item = m; s.group.add(m);
     s.idleY = m.position.y;
-    s.baseScale = sp.item;
+    s.baseVec = m.scale.clone();                  // malzemeye özgü en-boy oranını koru
     s.mats = [];
     m.traverse(o=>{ if(o.isMesh) s.mats.push(o.material); });
   });
@@ -731,6 +792,20 @@ function spawnCustomer(){
   document.getElementById('orderWrap').style.opacity = 1;
 }
 
+// Açık soslardan 1-2 tanesini siparişe ekler. Sıra önemsiz (fiş adet bazlı),
+// bu yüzden sona eklemek yeterli.
+function addSauces(items){
+  const acik = SAUCES.filter(k => S.unlocked.includes(k));
+  if(!acik.length) return items;
+  // müşteri ilerledikçe daha çok sos ister
+  const maxN = Math.min(acik.length, S.customerNo >= 9 ? 3 : S.customerNo >= 5 ? 2 : 1);
+  const kac = 1 + Math.floor(Math.random() * maxN);
+  const havuz = acik.slice();
+  for(let i=0;i<kac && havuz.length;i++)
+    items.push(havuz.splice(Math.floor(Math.random()*havuz.length), 1)[0]);
+  return items;
+}
+
 function makeOrder(){
   const n = S.customerNo;
   const has = k => S.unlocked.includes(k);
@@ -758,6 +833,18 @@ function makeOrder(){
   if(has('onion') && has('tomato'))
     cands.push({name:'Acı Soğanlı',
       items:['bunB','patty','onion','tomato','patty','onion','tomato','cheese','bunT'], w:4});
+  if(has('ketchup') && has('mayo'))
+    cands.push({name:'Soslu Klasik',
+      items:['bunB','patty','ketchup','cheese','mayo','patty','cheese','bunT'], w:4});
+  if(has('mustard') && has('onion'))
+    cands.push({name:'Hardallı Soğanlı',
+      items:['bunB','patty','mustard','onion','cheese','mustard','patty','onion','bunT'], w:4});
+  if(has('bbq') && has('bacon'))
+    cands.push({name:'Barbekü Pastırma',
+      items:['bunB','patty','bbq','bacon','cheese','bbq','patty','bacon','bunT'], w:5});
+  if(has('chili'))
+    cands.push({name:'Yangın Burger',
+      items:['bunB','patty','chili','cheese','chili','patty','onion','chili','bunT'], w:5});
   if(has('bacon'))
     cands.push({name:'Pastırmalı Kule',
       items:['bunB','patty','bacon','cheese','patty','bacon','cheese','patty','bacon','bunT'], w:5});
@@ -776,8 +863,13 @@ function makeOrder(){
 
   const total = cands.reduce((a,c)=>a+c.w, 0);
   let r = Math.random() * total;
-  for(const c of cands){ r -= c.w; if(r <= 0) return c; }
-  return cands[0];
+  let sec = cands[0];
+  for(const c of cands){ r -= c.w; if(r <= 0){ sec = c; break; } }
+  // reçetede sos yoksa müşteri çoğu zaman yine de sos ister
+  const sosVar = sec.items.some(k => SAUCES.includes(k));
+  const items = sec.items.slice();
+  return {name:sec.name,
+          items: (!sosVar && Math.random() < 0.7) ? addSauces(items) : items};
 }
 
 // Sipariş artık SIRALI değil: fişte adet yazar (2x Köfte gibi), oyuncu
@@ -789,13 +881,12 @@ function buildNeed(){
 function fillersLeft(){
   return Object.values(S.need || {}).reduce((a,b)=>a+b, 0);
 }
-// Oyuncu istediği malzemeyi koyabilir. Fişte olmayan / fazladan konanlar
-// kuleye eklenir ama servis anında puandan düşülür.
-function accepts(key){
-  if(!S.layers.length) return key === 'bunB';        // taban her zaman alt ekmek
-  if(key === 'bunB') return false;                   // ikinci bir taban olmaz
-  if(key === 'bunT') return fillersLeft() === 0;     // kapak ancak fiş tamamlanınca
-  return true;                                       // dolgular serbest (yanlışı da dahil)
+// Oyuncu HER malzemeyi koyabilir — yanlış sıra, fazladan malzeme, eksik burger
+// hepsi serbest. Hiçbiri engellenmez; bedeli servis anında puandan düşülür.
+// Fişte eksik kalan her malzeme de aynı cezayı yer.
+function eksikSayisi(){
+  const tabanYok = S.layers.length && S.layers[0].ing !== 'bunB' ? 1 : 0;
+  return fillersLeft() + tabanYok;
 }
 function nextKeys(){
   if(!S.playing || S.phase !== 'build') return [];
@@ -834,10 +925,15 @@ function addLayer(key, offX, offZ, fallH, throwV=0){
 
   // darbe: yüksekten bırakmak alt katmanları sarsar
   const impact = Math.min(fallH * CFG.dropGain + Math.abs(throwV)*CFG.throwHit, 3.2);
+  // Darbenin YÖNÜ, sapmanın işareti değil BÜYÜKLÜĞÜ ile ölçeklenir: ortaya konan
+  // malzeme kuleyi tek yöne itmez, sadece küçük bir titreşim bırakır.
+  // (Eskiden 1 mm kaçık bırakmak da tam güçte yan darbe sayılıyordu.)
+  const hataX = THREE.MathUtils.clamp(offX / (CFG.maxSlide*0.6), -1, 1);
+  const hataZ = THREE.MathUtils.clamp(offZ / (CFG.maxSlide*0.6), -1, 1);
   const sx = Math.abs(throwV) > 0.5 ? Math.sign(throwV)
-           : offX===0 ? (Math.random()-.5) : Math.sign(offX);
+           : hataX*0.85 + (Math.random()-.5)*0.25;
   L.vx += throwV * 0.45;               // savrulan malzeme kaymaya devam eder → kalıcı yamukluk
-  const sz = offZ===0 ? (Math.random()-.5) : Math.sign(offZ);
+  const sz = hataZ*0.85 + (Math.random()-.5)*0.25;
   const n = S.layers.length;
   for(let i=1;i<n-0;i++){
     const w = i/n;
@@ -1005,13 +1101,13 @@ function serve(){
   S.combo++;
   const mult = Math.min(CFG.comboMax, 1 + (S.combo-1)*CFG.comboStep);
   const base = CFG.serveScore * S.order.length * (0.35 + sat*0.65);
-  const ceza = S.wrong * CFG.wrongPenalty;
+  const ceza = (S.wrong + eksikSayisi()) * CFG.wrongPenalty;
   const gained = Math.round(base * mult) + S.perfects * CFG.perfectBonus - ceza;
   S.score += gained;
   S.served++;
   toast((gained>=0?'+':'') + gained
         + (mult>1 ? '  x'+mult.toFixed(2).replace(/0$/,'') : '')
-        + (ceza ? '   (-'+ceza+' fazladan)' : ''),
+        + (ceza ? '   (-'+ceza+' hatalı)' : ''),
         ceza ? '#ffb46b' : (sat>0.6 ? '#8fe07a' : '#ffd86b'));
   sfx('serve');
   const fp = new THREE.Vector3(S.base.x, stackTopY(), S.base.z);
@@ -1098,12 +1194,25 @@ function missCustomer(){
 }
 
 function loseLife(msg){
-  S.lives--;
+  if(!S.godMode) S.lives--;
   toast(msg, '#ff6b6b');
-  document.getElementById('lives').textContent =
-    '❤'.repeat(Math.max(0,Math.min(S.lives,CFG.lives)))
-    + '♡'.repeat(Math.max(0,CFG.lives-S.lives));
-  if(S.lives<=0) setTimeout(()=>endGame('CANLAR BİTTİ'), 900);
+  drawLives();
+  if(!S.godMode && S.lives<=0) setTimeout(()=>endGame('CANLAR BİTTİ'), 900);
+}
+
+/* --- test modu: sınırsız can. Can göstergesine dokun ya da G tuşuna bas. --- */
+function drawLives(){
+  const el = document.getElementById('lives');
+  if(S.godMode){ el.textContent = '♾'; return; }
+  el.textContent = '❤'.repeat(Math.max(0,Math.min(S.lives,CFG.lives)))
+                 + '♡'.repeat(Math.max(0,CFG.lives-S.lives));
+}
+function setGod(on){
+  S.godMode = on;
+  try{ localStorage.setItem('burgerStackGod', on ? '1' : '0'); }catch(e){}
+  if(on && S.lives <= 0) S.lives = CFG.lives;
+  drawLives();
+  toast(on ? 'SINIRSIZ CAN AÇIK' : 'SINIRSIZ CAN KAPALI', on ? '#8fe07a' : '#ffd86b');
 }
 
 /* ----------------------------- GİRDİ -------------------------------- */
@@ -1181,16 +1290,21 @@ function onDown(e){
   const sp0 = best.group.position.clone().project(camera);
   const sp1 = new THREE.Vector3(BUILD.x, counterTop+0.45, BUILD.z).project(camera);
   if(S.mode === 'throw'){
-    // FIRLAT: malzeme kutunun üstünde durur, parmakla nişan alınır
+    // FIRLAT: malzeme kutudan kalkıp kameraya doğru öne çıkar — hem kendisi
+    // hem nişan yörüngesi tezgahın önünde, hiçbir şeyin arkasında kalmadan görünür.
     const a = best.group.position;
-    mesh.position.set(a.x, a.y + 0.45, a.z);
+    const ax = a.x, ay = a.y + THROW_HOLD.y, az = a.z + THROW_HOLD.z;
+    mesh.position.set(ax, ay, az);
     S.drag = {mesh, key, from:best, atis:true,
-              anchor:{x:a.x, y:a.y + 0.45, z:a.z},
+              anchor:{x:ax, y:ay, z:az},
               sx:e.clientX, sy:e.clientY, aim:null, t:1};
     ptrActive = true;
     return;
   }
-  S.drag = {mesh, key, from:best,
+  // Sürüklenen kopya kutunun İÇİNDE doğmasın: parmak aşağıda olsa bile
+  // malzeme en az kutu kenarının üstünde durur, elde taşınıyormuş gibi görünür.
+  const enAzY = (best.rimY != null ? best.rimY : GRID.y) + ING[key].h*0.6 + 0.12;
+  S.drag = {mesh, key, from:best, minY:enAzY,
             z0:best.group.position.z, z:best.group.position.z,
             ndcY0:sp0.y, ndcY1:sp1.y, t:0};
   ptrActive = true;
@@ -1263,7 +1377,7 @@ function moveDrag(e){
   const hit = new THREE.Vector3();
   if(!raycaster.ray.intersectPlane(plane, hit)) return;
   d.tx = THREE.MathUtils.clamp(hit.x, -4.2, 4.2);
-  d.ty = THREE.MathUtils.clamp(hit.y, GRID.y, 9);
+  d.ty = THREE.MathUtils.clamp(hit.y, d.minY != null ? d.minY : GRID.y, 9);
   if(!d.init){ d.init = true; d.mesh.position.set(d.tx, d.ty, d.z); d.vx = d.vy = 0; }
 }
 
@@ -1307,32 +1421,32 @@ function yerlestir(key, dropX, dropY, throwV){
   // tezgah bırakma alanı dışı → iptal
   if(Math.abs(dropX - BUILD.x) > 1.5){ return; }
 
-  // istenen malzemelerden biri mi (sıra serbest, adet önemli)
-  if(!accepts(key)){
-    toast('YANLIŞ!', '#ff6b6b');
-    sfx('error');
-    S.patience = Math.max(0, S.patience - 0.18);
-    return;
-  }
-
   const top = stackTopPos();
-  // hızlı savurarak bırakırsan malzeme o yöne kayarak oturur
-  const offX = THREE.MathUtils.clamp(dropX - top.x + throwV*CFG.throwOff, -0.9, 0.9);
+  // Tek bir kötü bırakış anında öldürmesin: sapma, bu ikili için izin verilen
+  // kaymanın altında tutulur — kule yamulur ama hemen devrilmez.
+  const tutmaY = Math.min(ING[key].size || 1,
+                          S.layers.length ? S.layers[S.layers.length-1].size : 1);
+  const sinir = CFG.maxSlide * tutmaY * 0.8;
+  const offX = THREE.MathUtils.clamp(dropX - top.x + throwV*CFG.throwOff, -sinir, sinir);
   // ilk katman tabağa düz oturur; sonrakilerde küçük bir derinlik sapması olur
   const offZ = S.layers.length ? (Math.random()-0.5)*0.10 : 0;
   const fallH = Math.max(0, dropY - (stackTopY() + ING[key].h*0.5));
 
+  const tabandaydi = S.layers.length === 0;
   const L = addLayer(key, offX, offZ, fallH, throwV);
   let fazladan = false;
-  if(key !== 'bunB' && key !== 'bunT'){
+  if(key === 'bunB'){
+    if(!tabandaydi) fazladan = true;                 // ikinci taban: kulenin ortasında ekmek
+  } else if(key !== 'bunT'){
     if((S.need[key]||0) > 0) S.need[key]--;
-    else { S.wrong++; fazladan = true; }             // fişte yok / fazla → ceza servis anında
+    else fazladan = true;                            // fişte yok / fazla
   }
-  S.step++;
   if(fazladan){
+    S.wrong++;
     toast('FAZLADAN! -' + CFG.wrongPenalty, '#ff9b6b');
     sfx('error');
   }
+  S.step++;
   renderOrder();
 
   const perfect = Math.abs(offX) < 0.15 && fallH < 0.6 && Math.abs(throwV) < 1.5;
@@ -1348,6 +1462,11 @@ function yerlestir(key, dropX, dropY, throwV){
   }
 
   if(key === 'bunT'){
+    const eksik = eksikSayisi();
+    if(eksik){
+      toast('EKSİK! -' + (eksik*CFG.wrongPenalty), '#ff9b6b');
+      sfx('error');
+    }
     S.phase = 'carry';
     deliverRing.position.set(S.custX, counterTop + LIFT.needH + 0.05, LIFT.z);
     deliverRing.visible = true;
@@ -1375,7 +1494,7 @@ function renderOrder(){
     b.appendChild(row);
   };
   // alt ekmek en altta, üst ekmek en üstte; aradakiler serbest sırada
-  satir('bunB', S.layers.length ? 0 : 1, 1);
+  satir('bunB', S.layers.length && S.layers[0].ing === 'bunB' ? 0 : 1, 1);
   const toplamlar = {};
   S.order.forEach(k=>{ if(k!=='bunB'&&k!=='bunT') toplamlar[k]=(toplamlar[k]||0)+1; });
   Object.keys(toplamlar).forEach(k=> satir(k, (S.need&&S.need[k])||0, toplamlar[k]));
@@ -1588,7 +1707,8 @@ function animateShelves(now){
     s.item.position.y = s.idleY + Math.sin(now/600 + i)*0.03 + pulse*0.10;
     s.item.rotation.y += isNext ? 0.012 : 0.004;
     const k = 1 + pulse*0.07;
-    s.item.scale.setScalar((s.baseScale||0.55) * k);
+    const b = s.baseVec;
+    if(b) s.item.scale.set(b.x*k, b.y*k, b.z*k);
     if(s.mats) s.mats.forEach(mm=>{
       if(!mm.emissive) return;
       mm.emissive.setRGB(pulse*0.28, pulse*0.20, 0);
@@ -1760,7 +1880,7 @@ function startGame(){
   shake = 0;
   hideRage();
   layoutShelves();
-  document.getElementById('lives').textContent = '❤'.repeat(CFG.lives);
+  drawLives();
   document.getElementById('startScreen').classList.add('hide');
   document.getElementById('endScreen').classList.add('hide');
   document.getElementById('pauseScreen').classList.add('hide');
@@ -1929,14 +2049,36 @@ addEventListener('pointercancel', onUp);
 function modeUI(){
   document.querySelectorAll('.mbtn').forEach(b=>
     b.classList.toggle('on', b.dataset.m === S.mode));
+  const b = document.getElementById('modeBtn');
+  b.textContent = S.mode === 'throw' ? '🎯' : '🖐';
+  b.title = S.mode === 'throw' ? 'FIRLAT — dokun: SÜRÜKLE' : 'SÜRÜKLE — dokun: FIRLAT';
 }
+
+// Mod vardiya ortasında da değişebilir. Elde tutulan malzeme / nişan iptal edilir,
+// kule ve sipariş olduğu gibi kalır.
+function setMode(m){
+  if(S.mode === m) return;
+  S.mode = m;
+  try{ localStorage.setItem('burgerStackMode', m); }catch(e){}
+  if(S.drag){ scene.remove(S.drag.mesh); S.drag = null; }
+  aimHide();
+  S.grab = null; S.carrying = false; ptrActive = false;
+  modeUI();
+  if(S.playing){
+    toast(m === 'throw' ? '🎯 FIRLAT' : '🖐 SÜRÜKLE', '#ffd86b');
+    setHint(m === 'throw'
+      ? 'Kutuya bas, burgere doğru savur ve bırak'
+      : 'Malzemeyi tut, tezgaha sürükle, bırak');
+  }
+}
+
 try{ S.mode = localStorage.getItem('burgerStackMode') || 'drag'; }catch(e){}
 document.querySelectorAll('.mbtn').forEach(b=>{
-  b.onclick = ()=>{
-    S.mode = b.dataset.m;
-    try{ localStorage.setItem('burgerStackMode', S.mode); }catch(e){}
-    modeUI();
-  };
+  b.onclick = ()=> setMode(b.dataset.m);
+});
+document.getElementById('modeBtn').addEventListener('pointerdown', e=>{
+  e.stopPropagation();
+  setMode(S.mode === 'throw' ? 'drag' : 'throw');
 });
 modeUI();
 
@@ -1965,6 +2107,13 @@ document.getElementById('muteBtn').addEventListener('pointerdown', e=>{
   e.stopPropagation(); muted = !muted;
   e.currentTarget.textContent = muted ? '🔇' : '🔊';
 });
+try{ S.godMode = localStorage.getItem('burgerStackGod') === '1'; }catch(e){}
+drawLives();
+document.getElementById('livesChip').addEventListener('pointerdown', e=>{
+  e.stopPropagation(); setGod(!S.godMode);
+});
+addEventListener('keydown', e=>{ if(e.key === 'g' || e.key === 'G') setGod(!S.godMode); });
+
 document.addEventListener('visibilitychange', ()=>{ if(document.hidden) setPaused(true); });
 requestAnimationFrame(loop);
 </script>
