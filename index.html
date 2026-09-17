@@ -47,6 +47,25 @@
   #patience{height:100%;width:100%;border-radius:9px;background:#5ad469;
     transition:width .12s linear,background .3s}
 
+  /* kamera ayar paneli (geliştirme) */
+  #campanel{position:fixed;right:8px;bottom:8px;width:210px;z-index:20;pointer-events:auto;
+    background:rgba(20,12,26,.92);border:1px solid rgba(255,255,255,.18);border-radius:12px;
+    padding:9px 10px;color:#fff;font-size:11px;display:flex;flex-direction:column;gap:5px;
+    box-shadow:0 10px 30px rgba(0,0,0,.5)}
+  #campanel.hide{display:none}
+  #campanel label{display:flex;flex-direction:column;gap:2px;opacity:.9}
+  #campanel input[type=range]{width:100%;accent-color:#ffd063}
+  #campanel .cprow{display:flex;justify-content:space-between;align-items:center;
+    font-size:12px;letter-spacing:1px;color:#ffd063}
+  #campanel button{background:#ffd063;color:#40210a;border:none;border-radius:8px;
+    padding:6px;font-weight:800;cursor:pointer;font-size:11px}
+  #campanel .cprow button{background:none;color:#fff;font-size:16px;padding:0 4px}
+  #campanel span{color:#ffd063;font-weight:800}
+  #camBtn{position:fixed;right:8px;bottom:8px;z-index:19;pointer-events:auto;
+    background:rgba(20,12,26,.8);color:#fff;border:1px solid rgba(255,255,255,.2);
+    border-radius:50%;width:38px;height:38px;font-size:17px;cursor:pointer}
+  #camBtn.hide{display:none}
+
   /* sinirli müşteri baloncuğu */
   #rage{position:fixed;left:0;top:0;transform:translate(-50%,-100%) scale(.5);
     background:#fff;border-radius:16px;padding:9px 14px;pointer-events:none;opacity:0;
@@ -113,6 +132,17 @@
     <div id="bubble"></div>
     <div id="patienceOuter"><div id="patience"></div></div>
   </div>
+</div>
+
+<div id="campanel" class="hide">
+  <div class="cprow"><b>KAMERA</b><button id="camClose">×</button></div>
+  <label>Görüş açısı (FOV) <span id="vFov"></span><input type="range" id="sFov" min="30" max="80" step="1"></label>
+  <label>Yakınlık (küçük = yakın) <span id="vHalf"></span><input type="range" id="sHalf" min="1.2" max="4.5" step="0.05"></label>
+  <label>Dikey kapsama <span id="vVert"></span><input type="range" id="sVert" min="1.5" max="5" step="0.05"></label>
+  <label>Bakış açısı (yükseklik) <span id="vFac"></span><input type="range" id="sFac" min="0.05" max="0.9" step="0.01"></label>
+  <label>Taban yükseklik <span id="vYb"></span><input type="range" id="sYb" min="-1" max="3" step="0.05"></label>
+  <label>Hedef yükseklik <span id="vTgt"></span><input type="range" id="sTgt" min="-1.5" max="2.5" step="0.05"></label>
+  <button id="camCopy">Değerleri kopyala</button>
 </div>
 
 <div id="rage"><span id="rageTxt"></span></div>
@@ -228,16 +258,17 @@ let counterTop, PREP_TOP = -1.07, shelfSlots = [], stackGroup, debris = [];
 let plateMesh, deliverRing, particles = [], shake = 0;
 let camZ = 14, camY = 5.4, camTarget = new THREE.Vector3(0,1.4,0);
 let baseZ = 14, baseY = 5.4;
-const VIEW_HALF = 2.05;   // ekranda görmek istediğimiz yatay yarı-genişlik
-const VIEW_VERT = 2.55;   // dikey yarı-yükseklik: ön grid ile müşterinin başı arası
+let VIEW_HALF = 2.05;   // ekranda görmek istediğimiz yatay yarı-genişlik
+let VIEW_VERT = 2.55;   // dikey yarı-yükseklik: ön grid ile müşterinin başı arası
 function computeCamBase(){
   const asp = innerWidth/innerHeight;
   const t = Math.tan(THREE.MathUtils.degToRad(CAM_FOV/2));
   // hem yatay hem dikey sığdır: geniş ekranda dikey, dikey ekranda yatay belirleyici olur
   baseZ = THREE.MathUtils.clamp(Math.max(VIEW_HALF/(t*asp), VIEW_VERT/t), 8, 32);
-  baseY = 0.80 + baseZ*0.42;   // referanstaki gibi daha tepeden bakış
+  baseY = CAM_YBASE + baseZ*CAM_YFAC;
 }
-const CAM_FOV = 52;
+let CAM_FOV = 52;
+let CAM_YBASE = 0.80, CAM_YFAC = 0.42, CAM_TGT = 0.05;
 
 function initScene(){
   scene = new THREE.Scene();
@@ -302,12 +333,12 @@ function initScene(){
 function buildCounter(){
   const g = new THREE.Group();
   // tezgah gövdesi
-  const body = new THREE.Mesh(new THREE.BoxGeometry(4.0,2.7,2.6),
+  const body = new THREE.Mesh(new THREE.BoxGeometry(9.0,2.7,2.6),
     new THREE.MeshStandardMaterial({color:0x8a5a3a, roughness:.8}));
   body.position.y = -1.52;   // üst yüzü plakanın ALTINDA kalsın (aynı düzlemde olmasın)
   body.castShadow = body.receiveShadow = true; g.add(body);
   // üst plaka
-  const top = new THREE.Mesh(new THREE.BoxGeometry(4.3,0.16,2.9),
+  const top = new THREE.Mesh(new THREE.BoxGeometry(9.4,0.16,2.9),
     new THREE.MeshStandardMaterial({color:0xd9d4cc, roughness:.4, metalness:.25}));
   top.position.y = -0.08; top.receiveShadow = true; g.add(top);
   // kesme tahtası (bırakma alanı işareti)
@@ -339,21 +370,21 @@ function buildCounter(){
   nap.position.set(1.55,0.17,-1.02); nap.castShadow = true; g.add(nap);
 
   // ÖN HAZIRLIK TEZGAHI — malzeme gridi burada durur (ekranın alt bandı)
-  const prep = new THREE.Mesh(new THREE.BoxGeometry(4.3,1.6,2.1),
+  const prep = new THREE.Mesh(new THREE.BoxGeometry(9.0,1.6,2.1),
     new THREE.MeshStandardMaterial({color:0x7a4e33, roughness:.85}));
   prep.position.set(0,-2.08,2.6);   // üst yüzü plakanın ALTINDA kalsın prep.castShadow = prep.receiveShadow = true; g.add(prep);
-  const prepTop = new THREE.Mesh(new THREE.BoxGeometry(4.5,0.16,2.3),
+  const prepTop = new THREE.Mesh(new THREE.BoxGeometry(9.4,0.16,2.3),
     new THREE.MeshStandardMaterial({color:0xcfc9c0, roughness:.45, metalness:.2}));
   prepTop.position.set(0,-1.15,2.6); prepTop.receiveShadow = true; g.add(prepTop);
   PREP_TOP = -1.07;
 
   // tezgah ön yüzü: fayans şeridi
   for(let i=0;i<2;i++){
-    const stripe = new THREE.Mesh(new THREE.BoxGeometry(4.04,0.18,0.04),
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(9.04,0.18,0.04),
       new THREE.MeshStandardMaterial({color:i?0xf0c05a:0xd8342c, roughness:.7}));
     stripe.position.set(0,-0.42-i*0.26,1.32); g.add(stripe);
   }
-  for(let i=-1;i<=1;i++){
+  for(let i=-4;i<=4;i++){
     const tile = new THREE.Mesh(new THREE.BoxGeometry(0.62,0.52,0.04),
       new THREE.MeshStandardMaterial({color:0x9a6540, roughness:.85}));
     tile.position.set(i*0.95,-1.05,1.32); g.add(tile);
@@ -677,21 +708,23 @@ function makeOrder(){
   const pool = FILLERS.filter(has);
   const cands = [];
 
-  cands.push({name:'Klasik', items:['bunB','patty','cheese','bunT'], w: n<=3 ? 6 : 1});
+  // Siparişler uzun: asıl zorluk yüksek kuleyi devirmeden kurup taşımak
+  cands.push({name:'Klasik', items:['bunB','patty','cheese','patty','cheese','bunT'],
+              w: n<=2 ? 6 : 1});
   if(n >= 2)
     cands.push({name:'Duble Köfte',
-      items:['bunB','patty','cheese','patty','cheese','bunT'], w:3});
+      items:['bunB','patty','cheese','patty','cheese','patty','cheese','bunT'], w:3});
   if(has('lettuce') && has('tomato'))
     cands.push({name:'Bahçe Menü',
-      items:['bunB','patty','lettuce','tomato','cheese','bunT'], w:3});
+      items:['bunB','patty','lettuce','tomato','cheese','lettuce','tomato','patty','bunT'], w:4});
   if(has('onion') && has('tomato'))
     cands.push({name:'Acı Soğanlı',
-      items:['bunB','patty','onion','tomato','patty','onion','bunT'], w:3});
+      items:['bunB','patty','onion','tomato','patty','onion','tomato','cheese','bunT'], w:4});
   if(has('bacon'))
-    cands.push({name:'Pastırmalı Duble',
-      items:['bunB','patty','bacon','cheese','patty','bacon','cheese','bunT'], w:4});
-  if(n >= 5){
-    const k = 4 + Math.floor(Math.random() * Math.min(5, n-2));
+    cands.push({name:'Pastırmalı Kule',
+      items:['bunB','patty','bacon','cheese','patty','bacon','cheese','patty','bacon','bunT'], w:5});
+  if(n >= 3){
+    const k = 6 + Math.floor(Math.random() * Math.min(6, n));
     const items = ['bunB']; let last = null;
     for(let i=0;i<k;i++){
       let c, guard = 0;
@@ -700,7 +733,7 @@ function makeOrder(){
       items.push(c); last = c;
     }
     items.push('bunT');
-    cands.push({name:'Kule Burger', items, w: n >= 8 ? 5 : 2});
+    cands.push({name:'Kule Burger', items, w: n >= 6 ? 6 : 3});
   }
 
   const total = cands.reduce((a,c)=>a+c.w, 0);
@@ -1357,7 +1390,7 @@ function loop(now){
   const wantY = (baseY + grow*0.60) * zoom;
   camZ += (wantZ-camZ)*Math.min(1,dt*3);
   camY += (wantY-camY)*Math.min(1,dt*3);
-  camTarget.y += ((0.05 + h*0.55) - camTarget.y)*Math.min(1,dt*3);
+  camTarget.y += ((CAM_TGT + h*0.55) - camTarget.y)*Math.min(1,dt*3);
   // güvenlik ağı: kamera değerleri bir şekilde bozulursa sahne tamamen kararmasın
   if(!isFinite(camZ) || !isFinite(camY)){ camZ = baseZ; camY = baseY; }
   if(!isFinite(camTarget.x) || !isFinite(camTarget.y)) camTarget.set(0, 1.35, 0);
@@ -1536,6 +1569,54 @@ function endGame(title){
   document.getElementById('orderWrap').style.opacity = 0;
 }
 
+/* --------------------- KAMERA AYAR PANELİ (dev) --------------------- */
+// Açmak için: klavyede C, ya da adresin sonuna ?cam=1 ekle (telefonda).
+function camPanelInit(){
+  const P = document.getElementById('campanel');
+  const btn = document.createElement('button');
+  btn.id = 'camBtn'; btn.textContent = '🎥'; btn.className = 'hide';
+  document.body.appendChild(btn);
+
+  const fields = [
+    ['sFov','vFov', ()=>CAM_FOV,    v=>CAM_FOV=v,    1],
+    ['sHalf','vHalf',()=>VIEW_HALF, v=>VIEW_HALF=v,  2],
+    ['sVert','vVert',()=>VIEW_VERT, v=>VIEW_VERT=v,  2],
+    ['sFac','vFac',  ()=>CAM_YFAC,  v=>CAM_YFAC=v,   2],
+    ['sYb','vYb',    ()=>CAM_YBASE, v=>CAM_YBASE=v,  2],
+    ['sTgt','vTgt',  ()=>CAM_TGT,   v=>CAM_TGT=v,    2],
+  ];
+  const sync = ()=> fields.forEach(([sid,vid,get,,dp])=>{
+    document.getElementById(sid).value = get();
+    document.getElementById(vid).textContent = (+get()).toFixed(dp);
+  });
+  fields.forEach(([sid,vid,get,set,dp])=>{
+    document.getElementById(sid).addEventListener('input', e=>{
+      set(parseFloat(e.target.value));
+      document.getElementById(vid).textContent = parseFloat(e.target.value).toFixed(dp);
+      resize();                                  // yeni değerleri hemen uygula
+      camZ = baseZ; camY = baseY;                // anında geç, bekletme
+    });
+  });
+
+  const show = on =>{
+    P.classList.toggle('hide', !on);
+    btn.classList.toggle('hide', on);
+    if(on) sync();
+  };
+  btn.onclick = ()=>show(true);
+  document.getElementById('camClose').onclick = ()=>show(false);
+  document.getElementById('camCopy').onclick = ()=>{
+    const txt = `CAM_FOV=${CAM_FOV}; VIEW_HALF=${VIEW_HALF}; VIEW_VERT=${VIEW_VERT};\n`
+              + `CAM_YBASE=${CAM_YBASE}; CAM_YFAC=${CAM_YFAC}; CAM_TGT=${CAM_TGT};`;
+    try{ navigator.clipboard.writeText(txt); }catch(e){}
+    toast('Kopyalandı', '#8fe07a');
+  };
+  addEventListener('keydown', e=>{
+    if(e.key === 'c' || e.key === 'C') show(P.classList.contains('hide'));
+  });
+  if(/[?&]cam=1/.test(location.search)) btn.classList.remove('hide');
+}
+
 /* ----------------------------- BAĞLAMA ------------------------------ */
 function resize(){
   camera.aspect = innerWidth/innerHeight;
@@ -1546,6 +1627,7 @@ function resize(){
 }
 
 initScene();
+camPanelInit();
 addEventListener('resize', resize);
 addEventListener('pointerdown', onDown);
 addEventListener('pointermove', onMove);
