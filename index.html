@@ -226,9 +226,9 @@ const CFG = {
   wrongPenalty: 18,     // fişte olmayan / fazladan konan her malzeme     // mükemmel yerleştirme başına
   comboStep : 0.25,     // her ardışık serviste çarpan artışı
   comboMax  : 3.0,
-  carrySpeed: 6.5,      // tabak parmağı yakından takip etsin; savrulma hızdan değil İVMEDEN doğar
-  carryDamp : 1.35,       // taşırken ekstra sönümleme
-  carryTopple:0.8,       // taşırken devirici tork çarpanı
+  carrySpeed: 7.0,      // tabak parmağı yakından takip etsin; savrulma hızdan değil İVMEDEN doğar
+  carryDamp : 1.10,      // taşırken sönümleme (düşük = kaldırırken daha çok salınır)
+  carryTopple:0.95,      // taşırken devirici tork çarpanı
   shakeSpeed: 7.5,      // kurarken tabağı elle sallama hızı (hızlı → sert savrulma)
   shakeRangeX: 1.15,    // tahtada sağa-sola ne kadar kaydırılabilir
   grabK     : 150,
@@ -1207,12 +1207,21 @@ function drawLives(){
   el.textContent = '❤'.repeat(Math.max(0,Math.min(S.lives,CFG.lives)))
                  + '♡'.repeat(Math.max(0,CFG.lives-S.lives));
 }
+// test modunda bütün malzemeler (soslar dahil) anında rafta olur
+function hepsiniAc(){
+  Object.keys(ING).forEach(k=>{ if(!S.unlocked.includes(k)) S.unlocked.push(k); });
+}
 function setGod(on){
   S.godMode = on;
   try{ localStorage.setItem('burgerStackGod', on ? '1' : '0'); }catch(e){}
-  if(on && S.lives <= 0) S.lives = CFG.lives;
+  if(on){
+    if(S.lives <= 0) S.lives = CFG.lives;
+    hepsiniAc();
+    if(S.playing) layoutShelves();
+  }
   drawLives();
-  toast(on ? 'SINIRSIZ CAN AÇIK' : 'SINIRSIZ CAN KAPALI', on ? '#8fe07a' : '#ffd86b');
+  toast(on ? 'TEST MODU AÇIK' : 'TEST MODU KAPALI', on ? '#8fe07a' : '#ffd86b');
+  if(on) setHint('Test modu: sınırsız can + tüm malzemeler açık');
 }
 
 /* ----------------------------- GİRDİ -------------------------------- */
@@ -1874,6 +1883,7 @@ function startGame(){
     patience:1, custState:'none', collapsing:0, drag:null,
     combo:0, perfects:0, wrong:0, carrying:false, paused:false, phase:'build', custX:0,
     unlocked:['bunB','patty','cheese','bunT']});
+  if(S.godMode) hepsiniAc();   // test modu açıksa soslar dahil hepsi baştan rafta
   S.base.x = S.baseT.x = BUILD.x; S.base.z = S.baseT.z = BUILD.z;
   S.base.y = S.baseT.y = 0; S.baseV.y = 0; S.baseAy = 0;
   plateMesh.visible = false; deliverRing.visible = false;
