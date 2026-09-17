@@ -1620,7 +1620,7 @@ function camPanelInit(){
   const P = document.getElementById('campanel');
   camApply(camLoad());        // önceki ayarların yenilemeden sonra da geçerli
   const btn = document.createElement('button');
-  btn.id = 'camBtn'; btn.textContent = '🎥'; btn.className = 'hide';
+  btn.id = 'camBtn'; btn.textContent = '🎥';   // her zaman görünür (ayar düğmesi)
   document.body.appendChild(btn);
 
   const fields = [
@@ -1667,7 +1667,7 @@ function camPanelInit(){
   addEventListener('keydown', e=>{
     if(e.key === 'c' || e.key === 'C') show(P.classList.contains('hide'));
   });
-  if(/[?&]cam=1/.test(location.search)) btn.classList.remove('hide');
+  // panel kapalıyken düğme görünür; C tuşu da açıp kapatır
 }
 
 /* ----------------------------- BAĞLAMA ------------------------------ */
