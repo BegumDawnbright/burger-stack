@@ -96,7 +96,7 @@
   #toast.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
 
   /* hint */
-  #hint{position:fixed;left:50%;transform:translateX(-50%);bottom:40%;
+  #hint{position:fixed;left:50%;transform:translateX(-50%);bottom:4%;
     max-width:86%;text-align:center;color:#fff;font-size:12px;font-weight:700;
     background:rgba(20,12,26,.62);padding:6px 12px;border-radius:12px;
     opacity:.85;pointer-events:none;transition:opacity .4s}
@@ -147,6 +147,8 @@
   <label>Taban yükseklik <span id="vYb"></span><input type="range" id="sYb" min="-1" max="3" step="0.05"></label>
   <label>Hedef yükseklik <span id="vTgt"></span><input type="range" id="sTgt" min="-1.5" max="2.5" step="0.05"></label>
   <button id="camCopy">Değerleri kopyala</button>
+  <button id="camReset" style="background:#5a4466;color:#fff">Varsayılana dön</button>
+  <div id="camOut" style="font-size:9px;line-height:1.35;color:#c7b6d4;word-break:break-all"></div>
 </div>
 
 <div id="rage"><span id="rageTxt"></span></div>
@@ -374,12 +376,12 @@ function buildCounter(){
   nap.position.set(1.55,0.17,-1.02); nap.castShadow = true; g.add(nap);
 
   // ÖN HAZIRLIK TEZGAHI — malzeme gridi burada durur (ekranın alt bandı)
-  const prep = new THREE.Mesh(new THREE.BoxGeometry(9.0,1.6,2.1),
+  const prep = new THREE.Mesh(new THREE.BoxGeometry(9.0,1.6,3.6),
     new THREE.MeshStandardMaterial({color:0x7a4e33, roughness:.85}));
-  prep.position.set(0,-2.08,2.6);   // üst yüzü plakanın ALTINDA kalsın prep.castShadow = prep.receiveShadow = true; g.add(prep);
-  const prepTop = new THREE.Mesh(new THREE.BoxGeometry(9.4,0.16,2.3),
+  prep.position.set(0,-2.08,3.15);   // üst yüzü plakanın ALTINDA kalsın prep.castShadow = prep.receiveShadow = true; g.add(prep);
+  const prepTop = new THREE.Mesh(new THREE.BoxGeometry(9.4,0.16,3.9),
     new THREE.MeshStandardMaterial({color:0xcfc9c0, roughness:.45, metalness:.2}));
-  prepTop.position.set(0,-1.15,2.6); prepTop.receiveShadow = true; g.add(prepTop);
+  prepTop.position.set(0,-1.15,3.15); prepTop.receiveShadow = true; g.add(prepTop);
   PREP_TOP = -1.07;
 
   // tezgah ön yüzü: fayans şeridi
@@ -1575,8 +1577,34 @@ function endGame(title){
 
 /* --------------------- KAMERA AYAR PANELİ (dev) --------------------- */
 // Açmak için: klavyede C, ya da adresin sonuna ?cam=1 ekle (telefonda).
+const CAM_DEFAULTS = {CAM_FOV, VIEW_HALF, VIEW_VERT, CAM_YBASE, CAM_YFAC, CAM_TGT};
+
+function camApply(v){
+  if(!v) return;
+  if(v.CAM_FOV   != null) CAM_FOV   = v.CAM_FOV;
+  if(v.VIEW_HALF != null) VIEW_HALF = v.VIEW_HALF;
+  if(v.VIEW_VERT != null) VIEW_VERT = v.VIEW_VERT;
+  if(v.CAM_YBASE != null) CAM_YBASE = v.CAM_YBASE;
+  if(v.CAM_YFAC  != null) CAM_YFAC  = v.CAM_YFAC;
+  if(v.CAM_TGT   != null) CAM_TGT   = v.CAM_TGT;
+  resize(); camZ = baseZ; camY = baseY;
+}
+function camSave(){
+  const v = {CAM_FOV, VIEW_HALF, VIEW_VERT, CAM_YBASE, CAM_YFAC, CAM_TGT};
+  try{ localStorage.setItem('burgerStackCam', JSON.stringify(v)); }catch(e){}
+  return v;
+}
+function camLoad(){
+  try{ return JSON.parse(localStorage.getItem('burgerStackCam') || 'null'); }catch(e){ return null; }
+}
+function camText(){
+  const v = {CAM_FOV, VIEW_HALF, VIEW_VERT, CAM_YBASE, CAM_YFAC, CAM_TGT};
+  return Object.entries(v).map(([k,n])=>k+'='+(+n)).join('; ') + ';';
+}
+
 function camPanelInit(){
   const P = document.getElementById('campanel');
+  camApply(camLoad());        // önceki ayarların yenilemeden sonra da geçerli
   const btn = document.createElement('button');
   btn.id = 'camBtn'; btn.textContent = '🎥'; btn.className = 'hide';
   document.body.appendChild(btn);
@@ -1599,21 +1627,28 @@ function camPanelInit(){
       document.getElementById(vid).textContent = parseFloat(e.target.value).toFixed(dp);
       resize();                                  // yeni değerleri hemen uygula
       camZ = baseZ; camY = baseY;                // anında geç, bekletme
+      camSave();                                 // ayarı cihaza kaydet
+      document.getElementById('camOut').textContent = camText();
     });
   });
 
   const show = on =>{
     P.classList.toggle('hide', !on);
     btn.classList.toggle('hide', on);
-    if(on) sync();
+    if(on){ sync(); document.getElementById('camOut').textContent = camText(); }
   };
   btn.onclick = ()=>show(true);
   document.getElementById('camClose').onclick = ()=>show(false);
   document.getElementById('camCopy').onclick = ()=>{
-    const txt = `CAM_FOV=${CAM_FOV}; VIEW_HALF=${VIEW_HALF}; VIEW_VERT=${VIEW_VERT};\n`
-              + `CAM_YBASE=${CAM_YBASE}; CAM_YFAC=${CAM_YFAC}; CAM_TGT=${CAM_TGT};`;
+    const txt = camText();
     try{ navigator.clipboard.writeText(txt); }catch(e){}
+    document.getElementById('camOut').textContent = txt;
     toast('Kopyalandı', '#8fe07a');
+  };
+  document.getElementById('camReset').onclick = ()=>{
+    camApply(CAM_DEFAULTS);
+    try{ localStorage.removeItem('burgerStackCam'); }catch(e){}
+    sync(); document.getElementById('camOut').textContent = camText();
   };
   addEventListener('keydown', e=>{
     if(e.key === 'c' || e.key === 'C') show(P.classList.contains('hide'));
