@@ -15,12 +15,13 @@
   #hud{position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column}
   .topbar{display:flex;align-items:center;gap:8px;padding:10px 12px}
   .chip{background:rgba(0,0,0,.42);backdrop-filter:blur(6px);border-radius:14px;
-    padding:7px 12px;color:#fff;font-weight:700;font-size:15px;line-height:1;
-    display:flex;align-items:center;gap:6px}
+    padding:7px 10px;color:#fff;font-weight:700;font-size:14px;line-height:1;
+    display:flex;align-items:center;gap:5px;white-space:nowrap;flex:none}
+  .topbar{flex-wrap:nowrap}
   .chip small{font-size:10px;opacity:.6;font-weight:600;letter-spacing:.5px}
   #timeChip.warn{background:rgba(196,42,58,.75);animation:pulse .7s infinite alternate}
   @keyframes pulse{to{transform:scale(1.06)}}
-  #lives{letter-spacing:2px;font-size:16px}
+  #lives{letter-spacing:1px;font-size:15px;white-space:nowrap}
   #comboChip{background:linear-gradient(180deg,rgba(255,150,40,.85),rgba(220,70,40,.85));
     color:#fff;font-size:14px}
   .spacer{flex:1}
@@ -48,7 +49,8 @@
     transition:width .12s linear,background .3s}
 
   /* kamera ayar paneli (geliştirme) */
-  #campanel{position:fixed;right:8px;bottom:8px;width:210px;z-index:20;pointer-events:auto;
+  #campanel{position:fixed;right:8px;top:58px;width:200px;z-index:20;pointer-events:auto;
+    max-height:74vh;overflow:auto;
     background:rgba(20,12,26,.92);border:1px solid rgba(255,255,255,.18);border-radius:12px;
     padding:9px 10px;color:#fff;font-size:11px;display:flex;flex-direction:column;gap:5px;
     box-shadow:0 10px 30px rgba(0,0,0,.5)}
@@ -61,7 +63,7 @@
     padding:6px;font-weight:800;cursor:pointer;font-size:11px}
   #campanel .cprow button{background:none;color:#fff;font-size:16px;padding:0 4px}
   #campanel span{color:#ffd063;font-weight:800}
-  #camBtn{position:fixed;right:8px;bottom:8px;z-index:19;pointer-events:auto;
+  #camBtn{position:fixed;right:8px;top:58px;z-index:19;pointer-events:auto;
     background:rgba(20,12,26,.8);color:#fff;border:1px solid rgba(255,255,255,.2);
     border-radius:50%;width:38px;height:38px;font-size:17px;cursor:pointer}
   #camBtn.hide{display:none}
@@ -94,8 +96,10 @@
   #toast.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
 
   /* hint */
-  #hint{position:fixed;left:0;right:0;bottom:16px;text-align:center;color:#fff;
-    font-size:13px;font-weight:600;opacity:.75;pointer-events:none;transition:opacity .4s}
+  #hint{position:fixed;left:50%;transform:translateX(-50%);bottom:40%;
+    max-width:86%;text-align:center;color:#fff;font-size:12px;font-weight:700;
+    background:rgba(20,12,26,.62);padding:6px 12px;border-radius:12px;
+    opacity:.85;pointer-events:none;transition:opacity .4s}
 
   /* ---------- screens ---------- */
   .screen{position:fixed;inset:0;background:rgba(18,10,24,.88);backdrop-filter:blur(8px);
