@@ -270,10 +270,22 @@ const ING = {
   mustard:{name:'Hardal',   col:0xf0c020, col2:0xffe06a, h:0.08, grip:1.50, soft:0.20, size:0.94, unlock:7, kind:'sauce'},
   bbq   :{name:'Barbekü',   col:0x8a4520, col2:0xbe7038, h:0.09, grip:1.35, soft:0.26, size:0.98, unlock:10,kind:'sauce'},
   chili :{name:'Acı Sos',   col:0xe0442a, col2:0xff7a3c, h:0.08, grip:1.55, soft:0.20, size:0.92, unlock:13,kind:'sauce'},
+  // --- UZAY MALZEMELERİ: 3. müşteriden itibaren uzaylılarla birlikte gelirler ---
+  octopus :{name:'Ahtapot',      col:0xd4527f, col2:0xf58aa8, h:0.21, grip:0.62, soft:0.60, size:0.96, unlock:3, kind:'octo'},
+  glowherb:{name:'Parlak Ot',    col:0x3fe0b4, col2:0xaaffe6, h:0.15, grip:0.50, soft:0.86, size:1.00, unlock:3, kind:'glow'},
+  slime   :{name:'Uzay Jölesi',  col:0x9b5cf0, col2:0xd7b4ff, h:0.13, grip:1.25, soft:0.92, size:0.92, unlock:5, kind:'jelly'},
+  shroom  :{name:'Kozmik Mantar',col:0x35c6ff, col2:0xc6efff, h:0.23, grip:0.80, soft:0.38, size:0.76, unlock:8, kind:'shroom'},
   bunT : {name:'Üst Ekmek', col:0xc98b47, col2:0xe9d09a, h:0.42, grip:1.00, soft:0.45, size:1.00, unlock:0, kind:'bunT'},
 };
 const FILLERS = ['patty','cheese','lettuce','tomato','onion','bacon'];
 const SAUCES  = ['ketchup','mayo','mustard','bbq','chili'];
+const WEIRD   = ['octopus','glowherb','slime','shroom'];   // sadece uzaylılar ister
+// 3. müşteri garanti uzaylı (test için hemen görülsün), sonra oranı artar
+function alienGelsin(n){
+  if(n < 3) return false;
+  if(n === 3) return true;
+  return Math.random() < Math.min(0.75, 0.35 + (n-4)*0.05);
+}
 
 /* ------------------------------ DURUM ------------------------------- */
 const S = {
@@ -296,6 +308,7 @@ const S = {
   combo:0, perfects:0,
   custX:0,
   godMode:false,      // test: sınırsız can
+  alien:false,        // sıradaki müşteri uzaylı mı
 };
 
 /* ------------------------------ SAHNE ------------------------------- */
@@ -617,6 +630,83 @@ function mkIngMesh(key, scale=1){
       inner.rotation.x = Math.PI/2; inner.scale.y = 0.8; inner.position.y = -0.01; m.add(inner);
       break;}
 
+    /* --- ahtapot: yassı gövde + kıvrılan kollar + vantuzlar --- */
+    case 'octo':{
+      m = new THREE.Group();
+      const kafa = new THREE.Mesh(new THREE.SphereGeometry(0.36,14,10), mat);
+      kafa.scale.set(1,0.72,1); kafa.position.y = d.h*0.22; m.add(kafa);
+      for(let i=0;i<6;i++){
+        const a = i/6*Math.PI*2, kol = new THREE.Group();
+        for(let j=0;j<4;j++){
+          const seg = new THREE.Mesh(new THREE.SphereGeometry(0.105 - j*0.019, 8, 6), j%2?mat2:mat);
+          seg.position.set(0.32 + j*0.16, Math.sin(j*1.4)*0.05 - 0.02, 0);
+          kol.add(seg);
+        }
+        kol.rotation.y = a; m.add(kol);
+      }
+      for(let i=0;i<6;i++){
+        const a = i/6*Math.PI*2 + 0.35;
+        const v = new THREE.Mesh(new THREE.SphereGeometry(0.052,7,6), mat2);
+        v.scale.y = 0.4; v.position.set(Math.cos(a)*0.46, d.h*0.30, Math.sin(a)*0.46);
+        m.add(v);
+      }
+      break;}
+
+    /* --- parlak ot: kendi ışığını veren sapçıklar --- */
+    case 'glow':{
+      m = new THREE.Group();
+      const gm1 = new THREE.MeshStandardMaterial({color:d.col, roughness:.4,
+        emissive:new THREE.Color(d.col), emissiveIntensity:0.85});
+      const gm2 = new THREE.MeshStandardMaterial({color:d.col2, roughness:.3,
+        emissive:new THREE.Color(d.col2), emissiveIntensity:1.15});
+      gm1.userData.parlak = gm2.userData.parlak = true;   // raf animasyonu söndürmesin
+      for(let i=0;i<10;i++){
+        const a = i/10*Math.PI*2;
+        const sap = new THREE.Mesh(new THREE.ConeGeometry(0.075,0.40,6), i%2?gm2:gm1);
+        sap.position.set(Math.cos(a)*0.32, 0.12, Math.sin(a)*0.32);
+        sap.rotation.set(Math.cos(a)*0.55, 0, -Math.sin(a)*0.55);
+        m.add(sap);
+      }
+      const taban = new THREE.Mesh(new THREE.SphereGeometry(0.40,12,8), gm1);
+      taban.scale.y = 0.22; m.add(taban);
+      break;}
+
+    /* --- uzay jölesi: yarı saydam, içten ışıklı kabarcıklı blob --- */
+    case 'jelly':{
+      m = new THREE.Group();
+      const jm = new THREE.MeshStandardMaterial({color:d.col, roughness:.12, metalness:.12,
+        transparent:true, opacity:0.80,
+        emissive:new THREE.Color(d.col), emissiveIntensity:0.35});
+      jm.userData.parlak = true;
+      const blob = new THREE.Mesh(new THREE.SphereGeometry(0.60,16,12), jm);
+      blob.scale.set(1,0.40,1); m.add(blob);
+      for(let i=0;i<5;i++){
+        const a = i/5*Math.PI*2;
+        const kb = new THREE.Mesh(new THREE.SphereGeometry(0.10,8,6), mat2);
+        kb.position.set(Math.cos(a)*0.26, d.h*0.22, Math.sin(a)*0.26); m.add(kb);
+      }
+      break;}
+
+    /* --- kozmik mantar: benekli şapka + sap --- */
+    case 'shroom':{
+      m = new THREE.Group();
+      const sap = new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.19,d.h*0.55,10), mat2);
+      sap.position.y = -d.h*0.22; m.add(sap);
+      const sapka = new THREE.Mesh(
+        new THREE.SphereGeometry(0.44,16,10,0,Math.PI*2,0,Math.PI/2), mat);
+      sapka.scale.y = 0.60; sapka.position.y = d.h*0.06; m.add(sapka);
+      const alt = new THREE.Mesh(new THREE.CylinderGeometry(0.44,0.44,0.02,16), mat2);
+      alt.position.y = d.h*0.06; m.add(alt);
+      for(let i=0;i<7;i++){
+        const a = i*2.399, r = 0.09 + (i/7)*0.27;
+        const ben = new THREE.Mesh(new THREE.SphereGeometry(0.055,7,6), mat2);
+        const t = r/0.44;
+        ben.position.set(Math.cos(a)*r,
+          d.h*0.06 + 0.26*Math.sqrt(Math.max(0,1-t*t)), Math.sin(a)*r);
+        ben.scale.y = 0.42; m.add(ben);
+      }
+      break;}
+
     /* --- sos: düzensiz kenarlı ince gölcük + üstte fışkırtma izi --- */
     case 'sauce':{
       m = new THREE.Group();
@@ -709,7 +799,7 @@ function mkBin(){
 }
 
 function buildShelves(){
-  for(let i=0;i<14;i++){
+  for(let i=0;i<20;i++){
     const g = new THREE.Group();
     const bin = mkBin();
     g.add(bin);
@@ -765,31 +855,51 @@ function layoutShelves(){
     s.idleY = m.position.y;
     s.baseVec = m.scale.clone();                  // malzemeye özgü en-boy oranını koru
     s.mats = [];
-    m.traverse(o=>{ if(o.isMesh) s.mats.push(o.material); });
+    m.traverse(o=>{ if(o.isMesh && !o.material.userData.parlak) s.mats.push(o.material); });
   });
 }
 
 /* ---------------------------- MÜŞTERİ ------------------------------- */
-function mkCustomer(){
+function mkCustomer(uzayli){
   const g = new THREE.Group();
-  const hue = Math.random();
-  const bodyCol = new THREE.Color().setHSL(hue, .55, .55);
+  const hue = uzayli ? (0.30 + Math.random()*0.45) : Math.random();
+  const bodyCol = new THREE.Color().setHSL(hue, uzayli ? .62 : .55, uzayli ? .46 : .55);
   const body = new THREE.Mesh(new THREE.CylinderGeometry(0.46,0.52,1.25,16),
     new THREE.MeshStandardMaterial({color:bodyCol, roughness:.75}));
   body.position.y = 0.62; body.castShadow = true; g.add(body);
+  const skinCol = uzayli ? new THREE.Color().setHSL((hue+0.10)%1, .58, .60) : 0xf0c39a;
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.42,20,16),
-    new THREE.MeshStandardMaterial({color:0xf0c39a, roughness:.7}));
-  head.position.y = 1.52; head.castShadow = true; g.add(head);
-  // gözler
+    new THREE.MeshStandardMaterial({color:skinCol, roughness:.7}));
+  head.position.y = 1.52; head.castShadow = true;
+  if(uzayli) head.scale.set(1.10, 1.02, 0.90);
+  g.add(head);
   const eMat = new THREE.MeshBasicMaterial({color:0x22141c});
-  [-0.15,0.15].forEach(x=>{
-    const e = new THREE.Mesh(new THREE.SphereGeometry(0.058,8,8), eMat);
-    e.position.set(x*1.05,1.47,0.40); g.add(e);
-  });
-  // saç
-  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.44,16,12,0,Math.PI*2,0,Math.PI/2),
-    new THREE.MeshStandardMaterial({color:new THREE.Color().setHSL(Math.random(),.4,.25)}));
-  hair.position.y = 1.62; hair.scale.set(1.02,0.82,1.02); g.add(hair);
+  if(uzayli){
+    // tek büyük göz
+    const ak = new THREE.Mesh(new THREE.SphereGeometry(0.20,14,12),
+      new THREE.MeshStandardMaterial({color:0xf6fbff, roughness:.25}));
+    ak.position.set(0,1.54,0.28); ak.scale.z = 0.65; g.add(ak);
+    const bebek = new THREE.Mesh(new THREE.SphereGeometry(0.095,10,10), eMat);
+    bebek.position.set(0,1.54,0.42); g.add(bebek);
+    // ışıklı antenler
+    const antMat = new THREE.MeshStandardMaterial({color:bodyCol, roughness:.6});
+    const ucMat  = new THREE.MeshStandardMaterial({color:0xbaffe4,
+      emissive:new THREE.Color(0x5affc0), emissiveIntensity:1.2});
+    [-1,1].forEach(sg=>{
+      const sap = new THREE.Mesh(new THREE.CylinderGeometry(0.028,0.038,0.44,6), antMat);
+      sap.position.set(sg*0.17, 1.95, 0); sap.rotation.z = -sg*0.34; g.add(sap);
+      const uc = new THREE.Mesh(new THREE.SphereGeometry(0.085,10,8), ucMat);
+      uc.position.set(sg*0.31, 2.15, 0); g.add(uc);
+    });
+  } else {
+    [-0.15,0.15].forEach(x=>{
+      const e = new THREE.Mesh(new THREE.SphereGeometry(0.058,8,8), eMat);
+      e.position.set(x*1.05,1.47,0.40); g.add(e);
+    });
+    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.44,16,12,0,Math.PI*2,0,Math.PI/2),
+      new THREE.MeshStandardMaterial({color:new THREE.Color().setHSL(Math.random(),.4,.25)}));
+    hair.position.y = 1.62; hair.scale.set(1.02,0.82,1.02); g.add(hair);
+  }
   // ağız
   const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.17,0.035,0.03),
     new THREE.MeshBasicMaterial({color:0x8a3a3a}));
@@ -801,7 +911,8 @@ function mkCustomer(){
     b.position.set(sgn*0.16, 1.60, 0.40);
     g.add(b); return b;
   });
-  g.userData = {head, mouth, brows, angry:false};
+  g.userData = {head, mouth, brows, angry:false, uzayli:!!uzayli,
+                 headCol:head.material.color.clone()};
   g.scale.setScalar(1.45);
   g.position.set(6.0, -0.30, -2.45);
   scene.add(g);
@@ -819,6 +930,7 @@ function spawnCustomer(){
   });
   if(unlockedNow){ layoutShelves(); toast('YENİ: '+ING[unlockedNow].name, '#8fe07a'); }
 
+  S.alien = alienGelsin(S.customerNo);
   const rec = makeOrder();
   S.order = rec.items;
   S.orderName = rec.name;
@@ -829,7 +941,7 @@ function spawnCustomer(){
   S.patience = 1;
   S.custX = 0;   // müşteri her zaman tezgahın tam ortasında durur
   deliverRing.position.x = S.custX;
-  S.customer = mkCustomer();
+  S.customer = mkCustomer(S.alien);
   S.custState = 'walk';
   renderOrder();
   document.getElementById('orderWrap').style.opacity = 1;
@@ -852,7 +964,8 @@ function addSauces(items){
 function makeOrder(){
   const n = S.customerNo;
   const has = k => S.unlocked.includes(k);
-  const pool = FILLERS.filter(has);
+  // uzaylılar garip malzemeleri de havuzlarına katar
+  const pool = (S.alien ? FILLERS.concat(WEIRD) : FILLERS).filter(has);
   const cands = [];
 
   // 1. müşteri: kısa ve öğretici. 2. müşteri: doğrudan dev kule.
@@ -862,6 +975,44 @@ function makeOrder(){
     for(let i=0;i<8;i++) items.push(i%2 ? 'cheese' : 'patty');
     items.push('bunT');
     return {name:'Dev Kule', items};
+  }
+
+  // --- UZAYLI SİPARİŞLERİ: ahtapot, parlak ot, jöle, kozmik mantar ---
+  if(S.alien){
+    const uzay = [];
+    if(has('octopus') && has('glowherb'))
+      uzay.push({name:'Ahtapot Menü',
+        items:['bunB','patty','octopus','glowherb','cheese','octopus','bunT'], w:4});
+    if(has('glowherb'))
+      uzay.push({name:'Parlak Bahçe',
+        items:['bunB','glowherb','patty','glowherb','cheese','glowherb','bunT'], w:3});
+    if(has('slime') && has('octopus'))
+      uzay.push({name:'Jöleli Kule',
+        items:['bunB','patty','slime','octopus','cheese','slime','patty','bunT'], w:4});
+    if(has('shroom'))
+      uzay.push({name:'Kozmik Kule',
+        items:['bunB','patty','shroom','glowherb','slime','shroom','octopus','bunT'], w:5});
+    if(n >= 4 && pool.length){
+      const k = 5 + Math.floor(Math.random() * Math.min(5, n));
+      const items = ['bunB']; let last = null;
+      for(let i=0;i<k;i++){
+        let c, guard = 0;
+        do{ c = pool[Math.floor(Math.random()*pool.length)]; }
+        while(c === last && pool.length > 1 && guard++ < 8);
+        items.push(c); last = c;
+      }
+      items.push('bunT');
+      uzay.push({name:'Uzay Kulesi', items, w:3});
+    }
+    if(uzay.length){
+      const tot = uzay.reduce((a,c)=>a+c.w, 0);
+      let r = Math.random()*tot, sec = uzay[0];
+      for(const c of uzay){ r -= c.w; if(r <= 0){ sec = c; break; } }
+      const items = sec.items.slice();
+      const sosVar = items.some(k => SAUCES.includes(k));
+      return {name:sec.name,
+              items:(!sosVar && Math.random() < 0.6) ? addSauces(items) : items};
+    }
   }
 
   // Siparişler uzun: asıl zorluk yüksek kuleyi devirmeden kurup taşımak
@@ -1201,7 +1352,8 @@ function angerCustomer(){
   u.brows[0].position.y = u.brows[1].position.y = 1.55;
   u.mouth.scale.set(1.5, 2.2, 1);
   u.mouth.position.y = 1.27;
-  u.head.material.color.setHex(0xe89b7a);
+  // kendi teninin kızarmış hâli (uzaylıya insan teni yakışmıyor)
+  u.head.material.color.copy(u.headCol).lerp(new THREE.Color(0xff4a3a), 0.45);
   // küfür baloncuğu
   const r = document.getElementById('rage');
   document.getElementById('rageTxt').textContent =
@@ -1926,6 +2078,7 @@ function startGame(){
     served:0, missed:0, collapsed:0, customerNo:0, step:0, order:[],
     patience:1, custState:'none', collapsing:0, drag:null,
     combo:0, perfects:0, wrong:0, carrying:false, paused:false, phase:'build', custX:0,
+    alien:false,
     unlocked:['bunB','patty','cheese','bunT']});
   if(S.godMode) hepsiniAc();   // test modu açıksa soslar dahil hepsi baştan rafta
   S.base.x = S.baseT.x = BUILD.x; S.base.z = S.baseT.z = BUILD.z;
