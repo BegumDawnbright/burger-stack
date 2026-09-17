@@ -146,6 +146,8 @@
   <label>Bakış açısı (yükseklik) <span id="vFac"></span><input type="range" id="sFac" min="0.05" max="0.9" step="0.01"></label>
   <label>Taban yükseklik <span id="vYb"></span><input type="range" id="sYb" min="-1" max="3" step="0.05"></label>
   <label>Hedef yükseklik <span id="vTgt"></span><input type="range" id="sTgt" min="-1.5" max="2.5" step="0.05"></label>
+  <label>İleri / geri (mesafe) <span id="vZof"></span><input type="range" id="sZof" min="-6" max="10" step="0.1"></label>
+  <label>Bakış derinliği <span id="vZtg"></span><input type="range" id="sZtg" min="-4" max="4" step="0.1"></label>
   <button id="camCopy">Değerleri kopyala</button>
   <button id="camReset" style="background:#5a4466;color:#fff">Varsayılana dön</button>
   <div id="camOut" style="font-size:10px;line-height:1.4;color:#ffe9a8;word-break:break-all;
@@ -272,11 +274,13 @@ function computeCamBase(){
   const asp = innerWidth/innerHeight;
   const t = Math.tan(THREE.MathUtils.degToRad(CAM_FOV/2));
   // hem yatay hem dikey sığdır: geniş ekranda dikey, dikey ekranda yatay belirleyici olur
-  baseZ = THREE.MathUtils.clamp(Math.max(VIEW_HALF/(t*asp), VIEW_VERT/t), 8, 32);
+  baseZ = THREE.MathUtils.clamp(Math.max(VIEW_HALF/(t*asp), VIEW_VERT/t) + CAM_ZOFF, 3, 40);
   baseY = CAM_YBASE + baseZ*CAM_YFAC;
 }
 let CAM_FOV = 48;
 let CAM_YBASE = 0.95, CAM_YFAC = 0.73, CAM_TGT = 0.85;
+let CAM_ZOFF = 0;    // kamerayı ileri(-)/geri(+) götür
+let CAM_ZTGT = 0;    // bakış noktasını derinlemesine kaydır
 
 function initScene(){
   scene = new THREE.Scene();
@@ -1418,6 +1422,7 @@ function loop(now){
   if(!isFinite(camTarget.x) || !isFinite(camTarget.y)) camTarget.set(0, 1.35, 0);
 
   camTarget.x += (S.base.x*0.35 - camTarget.x)*Math.min(1,dt*3);
+  camTarget.z += (CAM_ZTGT - camTarget.z)*Math.min(1,dt*3);
   camera.position.set(0, camY, camZ);
   camera.lookAt(camTarget);
   if(shake > 0.001){
@@ -1593,7 +1598,7 @@ function endGame(title){
 
 /* --------------------- KAMERA AYAR PANELİ (dev) --------------------- */
 // Açmak için: klavyede C, ya da adresin sonuna ?cam=1 ekle (telefonda).
-const CAM_DEFAULTS = {CAM_FOV, VIEW_HALF, VIEW_VERT, CAM_YBASE, CAM_YFAC, CAM_TGT};
+const CAM_DEFAULTS = {CAM_FOV, VIEW_HALF, VIEW_VERT, CAM_YBASE, CAM_YFAC, CAM_TGT, CAM_ZOFF, CAM_ZTGT};
 
 function camApply(v){
   if(!v) return;
@@ -1603,10 +1608,12 @@ function camApply(v){
   if(v.CAM_YBASE != null) CAM_YBASE = v.CAM_YBASE;
   if(v.CAM_YFAC  != null) CAM_YFAC  = v.CAM_YFAC;
   if(v.CAM_TGT   != null) CAM_TGT   = v.CAM_TGT;
+  if(v.CAM_ZOFF  != null) CAM_ZOFF  = v.CAM_ZOFF;
+  if(v.CAM_ZTGT  != null) CAM_ZTGT  = v.CAM_ZTGT;
   resize(); camZ = baseZ; camY = baseY;
 }
 function camSave(){
-  const v = {CAM_FOV, VIEW_HALF, VIEW_VERT, CAM_YBASE, CAM_YFAC, CAM_TGT};
+  const v = {CAM_FOV, VIEW_HALF, VIEW_VERT, CAM_YBASE, CAM_YFAC, CAM_TGT, CAM_ZOFF, CAM_ZTGT};
   try{ localStorage.setItem('burgerStackCam', JSON.stringify(v)); }catch(e){}
   return v;
 }
@@ -1614,7 +1621,7 @@ function camLoad(){
   try{ return JSON.parse(localStorage.getItem('burgerStackCam') || 'null'); }catch(e){ return null; }
 }
 function camHash(){
-  const v = [CAM_FOV, VIEW_HALF, VIEW_VERT, CAM_YBASE, CAM_YFAC, CAM_TGT]
+  const v = [CAM_FOV, VIEW_HALF, VIEW_VERT, CAM_YBASE, CAM_YFAC, CAM_TGT, CAM_ZOFF, CAM_ZTGT]
               .map(n => +(+n).toFixed(2)).join(',');
   try{ history.replaceState(null, '', location.pathname + '#cam=' + v); }catch(e){}
 }
@@ -1622,12 +1629,13 @@ function camFromHash(){
   const m = /#cam=([-\d.,]+)/.exec(location.hash);
   if(!m) return null;
   const a = m[1].split(',').map(Number);
-  if(a.length !== 6 || a.some(isNaN)) return null;
+  if((a.length !== 6 && a.length !== 8) || a.some(isNaN)) return null;
   return {CAM_FOV:a[0], VIEW_HALF:a[1], VIEW_VERT:a[2],
-          CAM_YBASE:a[3], CAM_YFAC:a[4], CAM_TGT:a[5]};
+          CAM_YBASE:a[3], CAM_YFAC:a[4], CAM_TGT:a[5],
+          CAM_ZOFF:a.length>6?a[6]:0, CAM_ZTGT:a.length>6?a[7]:0};
 }
 function camText(){
-  const v = {CAM_FOV, VIEW_HALF, VIEW_VERT, CAM_YBASE, CAM_YFAC, CAM_TGT};
+  const v = {CAM_FOV, VIEW_HALF, VIEW_VERT, CAM_YBASE, CAM_YFAC, CAM_TGT, CAM_ZOFF, CAM_ZTGT};
   return Object.entries(v).map(([k,n])=>k+'='+(+n)).join('; ') + ';';
 }
 
@@ -1648,6 +1656,8 @@ function camPanelInit(){
     ['sFac','vFac',  ()=>CAM_YFAC,  v=>CAM_YFAC=v,   2],
     ['sYb','vYb',    ()=>CAM_YBASE, v=>CAM_YBASE=v,  2],
     ['sTgt','vTgt',  ()=>CAM_TGT,   v=>CAM_TGT=v,    2],
+    ['sZof','vZof',  ()=>CAM_ZOFF,  v=>CAM_ZOFF=v,   1],
+    ['sZtg','vZtg',  ()=>CAM_ZTGT,  v=>CAM_ZTGT=v,   1],
   ];
   const sync = ()=> fields.forEach(([sid,vid,get,,dp])=>{
     document.getElementById(sid).value = get();
