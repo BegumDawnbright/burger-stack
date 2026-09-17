@@ -206,7 +206,8 @@ const CFG = {
   missScore : -30,      // sabrı biten müşteri
   squashMax : 0.34,     // bir katman en fazla bu oranda ezilir
   squashLoad: 0.055,    // üstteki her katmanın kalıcı ezme payı
-  perfectBonus: 12,     // mükemmel yerleştirme başına
+  perfectBonus: 12,
+  wrongPenalty: 18,     // fişte olmayan / fazladan konan her malzeme     // mükemmel yerleştirme başına
   comboStep : 0.25,     // her ardışık serviste çarpan artışı
   comboMax  : 3.0,
   carrySpeed: 6.5,      // tabak parmağı yakından takip etsin; savrulma hızdan değil İVMEDEN doğar
@@ -707,6 +708,7 @@ function spawnCustomer(){
   S.order = rec.items;
   S.orderName = rec.name;
   S.step = 0;
+  S.wrong = 0;
   buildNeed();
   S.patienceMax = 18 + S.order.length * 4.6;   // kurma + taşıma için yeterli olsun
   S.patience = 1;
@@ -776,10 +778,13 @@ function buildNeed(){
 function fillersLeft(){
   return Object.values(S.need || {}).reduce((a,b)=>a+b, 0);
 }
+// Oyuncu istediği malzemeyi koyabilir. Fişte olmayan / fazladan konanlar
+// kuleye eklenir ama servis anında puandan düşülür.
 function accepts(key){
-  if(!S.layers.length) return key === 'bunB';
-  if(fillersLeft() > 0) return key !== 'bunB' && key !== 'bunT' && (S.need[key]||0) > 0;
-  return key === 'bunT';
+  if(!S.layers.length) return key === 'bunB';        // taban her zaman alt ekmek
+  if(key === 'bunB') return false;                   // ikinci bir taban olmaz
+  if(key === 'bunT') return fillersLeft() === 0;     // kapak ancak fiş tamamlanınca
+  return true;                                       // dolgular serbest (yanlışı da dahil)
 }
 function nextKeys(){
   if(!S.playing || S.phase !== 'build') return [];
@@ -989,11 +994,14 @@ function serve(){
   S.combo++;
   const mult = Math.min(CFG.comboMax, 1 + (S.combo-1)*CFG.comboStep);
   const base = CFG.serveScore * S.order.length * (0.35 + sat*0.65);
-  const gained = Math.round(base * mult) + S.perfects * CFG.perfectBonus;
+  const ceza = S.wrong * CFG.wrongPenalty;
+  const gained = Math.round(base * mult) + S.perfects * CFG.perfectBonus - ceza;
   S.score += gained;
   S.served++;
-  toast('+'+gained + (mult>1 ? '  x'+mult.toFixed(2).replace(/0$/,'') : ''),
-        sat>0.6 ? '#8fe07a' : '#ffd86b');
+  toast((gained>=0?'+':'') + gained
+        + (mult>1 ? '  x'+mult.toFixed(2).replace(/0$/,'') : '')
+        + (ceza ? '   (-'+ceza+' fazladan)' : ''),
+        ceza ? '#ffb46b' : (sat>0.6 ? '#8fe07a' : '#ffd86b'));
   sfx('serve');
   const fp = new THREE.Vector3(S.base.x, stackTopY(), S.base.z);
   burst(fp, 0x8fe07a, 18, 2.6);
@@ -1023,6 +1031,7 @@ function resetCarry(){
   S.phase = 'build';
   S.carrying = false;
   S.perfects = 0;
+  S.wrong = 0;
   S.base.x = S.baseT.x = BUILD.x; S.base.z = S.baseT.z = BUILD.z;
   S.base.y = S.baseT.y = 0; S.baseV.y = 0; S.baseAy = 0;
   deliverRing.visible = false;
@@ -1265,8 +1274,16 @@ function onUp(e){
   const fallH = Math.max(0, dropY - (stackTopY() + ING[key].h*0.5));
 
   const L = addLayer(key, offX, offZ, fallH, throwV);
-  if(key !== 'bunB' && key !== 'bunT') S.need[key]--;
+  let fazladan = false;
+  if(key !== 'bunB' && key !== 'bunT'){
+    if((S.need[key]||0) > 0) S.need[key]--;
+    else { S.wrong++; fazladan = true; }             // fişte yok / fazla → ceza servis anında
+  }
   S.step++;
+  if(fazladan){
+    toast('FAZLADAN! -' + CFG.wrongPenalty, '#ff9b6b');
+    sfx('error');
+  }
   renderOrder();
 
   const perfect = Math.abs(offX) < 0.15 && fallH < 0.6 && Math.abs(throwV) < 1.5;
@@ -1281,7 +1298,7 @@ function onUp(e){
     sfx('place');
   }
 
-  if(S.step >= S.order.length){
+  if(key === 'bunT'){
     S.phase = 'carry';
     deliverRing.position.set(S.custX, counterTop + LIFT.needH + 0.05, LIFT.z);
     deliverRing.visible = true;
@@ -1313,7 +1330,14 @@ function renderOrder(){
   const toplamlar = {};
   S.order.forEach(k=>{ if(k!=='bunB'&&k!=='bunT') toplamlar[k]=(toplamlar[k]||0)+1; });
   Object.keys(toplamlar).forEach(k=> satir(k, (S.need&&S.need[k])||0, toplamlar[k]));
-  satir('bunT', S.step >= S.order.length ? 0 : 1, 1);
+  satir('bunT', S.phase === 'carry' ? 0 : 1, 1);
+  if(S.wrong > 0){
+    const w = document.createElement('div');
+    w.className = 'row';
+    w.style.cssText = 'order:98;color:#c0392b;font-size:10px;font-weight:900';
+    w.textContent = 'Fazladan: ' + S.wrong + '  (-' + (S.wrong*CFG.wrongPenalty) + ')';
+    b.appendChild(w);
+  }
 }
 
 let toastTO;
@@ -1597,7 +1621,7 @@ function startGame(){
   Object.assign(S, {playing:true, time:CFG.shiftTime, score:0, lives:CFG.lives,
     served:0, missed:0, collapsed:0, customerNo:0, step:0, order:[],
     patience:1, custState:'none', collapsing:0, drag:null,
-    combo:0, perfects:0, carrying:false, paused:false, phase:'build', custX:0,
+    combo:0, perfects:0, wrong:0, carrying:false, paused:false, phase:'build', custX:0,
     unlocked:['bunB','patty','cheese','bunT']});
   S.base.x = S.baseT.x = BUILD.x; S.base.z = S.baseT.z = BUILD.z;
   S.base.y = S.baseT.y = 0; S.baseV.y = 0; S.baseAy = 0;
