@@ -306,13 +306,50 @@ let camZ = 14, camY = 5.4, camTarget = new THREE.Vector3(0,1.4,0);
 let baseZ = 14, baseY = 5.4;
 let VIEW_HALF = 2.30;   // ekranda görmek istediğimiz yatay yarı-genişlik
 let VIEW_VERT = 2.45;   // dikey yarı-yükseklik: ön grid ile müşterinin başı arası
+// Kadrajda MUTLAKA kalması gereken noktalar. VIEW_HALF/VIEW_VERT tek başına
+// yetmiyor: kutular kameraya yakın (büyük z) olduğu için ekranda çok aşağı
+// düşüyorlar ve geniş ekranda alttan taşıyorlardı.
+function kadrajNoktalari(){
+  const zOn = Math.max(...GRID.rowZ[3], ...GRID.rowZ[2]) + 0.55;  // en öndeki kutunun ön kenarı
+  const xOn = 1.85;                                              // en geniş grid'in dış kenarı
+  return [
+    new THREE.Vector3(0, 2.55, -2.45),      // müşterinin başının üstü
+    new THREE.Vector3(-xOn, GRID.y-0.15, zOn),
+    new THREE.Vector3( xOn, GRID.y-0.15, zOn),
+    new THREE.Vector3(-VIEW_HALF, 0.1, BUILD.z),   // tezgah / tahta kenarları
+    new THREE.Vector3( VIEW_HALF, 0.1, BUILD.z),
+  ];
+}
+
+const _fitCam = new THREE.PerspectiveCamera(46, 1, 0.1, 160);
+const _fitTgt = new THREE.Vector3();
 function computeCamBase(){
   const asp = innerWidth/innerHeight;
   const t = Math.tan(THREE.MathUtils.degToRad(CAM_FOV/2));
   // hem yatay hem dikey sığdır: geniş ekranda dikey, dikey ekranda yatay belirleyici olur
   baseZ = THREE.MathUtils.clamp(Math.max(VIEW_HALF/(t*asp), VIEW_VERT/t) + CAM_ZOFF, 3, 40);
   baseY = CAM_YBASE + baseZ*CAM_YFAC;
+
+  // sonra gerçek izdüşümle denetle: taşan varsa kamerayı kademeli geri çek
+  const pts = kadrajNoktalari();
+  _fitCam.fov = CAM_FOV; _fitCam.aspect = asp;
+  _fitTgt.set(0, CAM_TGT, CAM_ZTGT);
+  for(let i=0;i<40;i++){
+    _fitCam.position.set(0, baseY, baseZ);
+    _fitCam.lookAt(_fitTgt);
+    _fitCam.updateProjectionMatrix();
+    _fitCam.updateMatrixWorld(true);
+    let tasma = 0;
+    for(const p of pts){
+      const v = p.clone().project(_fitCam);
+      tasma = Math.max(tasma, Math.abs(v.x)/0.95, Math.abs(v.y)/0.95);
+    }
+    if(tasma <= 1 || baseZ >= 40) break;
+    baseZ = Math.min(40, baseZ * (1 + Math.min(0.06, (tasma-1)*0.5 + 0.012)));
+    baseY = CAM_YBASE + baseZ*CAM_YFAC;
+  }
 }
+
 let CAM_FOV = 46;
 let CAM_YBASE = 0.70, CAM_YFAC = 0.46, CAM_TGT = 0.60;
 let CAM_ZOFF = 1.7;  // kamerayı ileri(-)/geri(+) götür
