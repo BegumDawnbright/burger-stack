@@ -35,8 +35,9 @@
     align-items:stretch}
   #bubble .row{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:800;
     color:#3a2a18;padding:2px 3px;border-radius:7px;transition:.2s}
-  #bubble .row .lbl{display:none;white-space:nowrap;padding-right:3px}
-  #bubble .row.next .lbl{display:inline}
+  #bubble .row .lbl{display:inline;white-space:nowrap;padding-right:3px;font-size:11px}
+  #bubble .row .cnt{font-size:11px;font-weight:900;color:#a0522d;min-width:24px;text-align:center}
+
   #bubble .row.done{opacity:.33;text-decoration:line-through}
   #bubble .row.next{background:#ffe9a8;box-shadow:0 0 0 2px #f5c451 inset}
   #bubble .ohead{order:99;font-size:9px;font-weight:900;letter-spacing:.8px;
@@ -163,7 +164,8 @@
 
 <div class="screen" id="startScreen">
   <h1>BURGER STACK</h1>
-  <p>Müşterinin siparişini <b>alttan üste</b> doğru sırayla diz.
+  <p>Müşterinin siparişini <b>istediğin sırada</b> koy — adetler tutsun yeter.
+     Alt ekmek en altta, üst ekmek en üstte.
      Malzemeyi <b>alttaki kutulardan</b> tutup tezgaha sürükle.<br><br>
      Ortaya ve <b>alçaktan</b> bırak — kenardan ya da yüksekten bırakırsan kule sallanır ve devrilir.</p>
   <div class="statline" id="startBest"></div>
@@ -230,14 +232,14 @@ const LIFT = {maxH:2.35, needH:1.45, z:-1.35, xTol:0.6};
 // grip: yüksek = tutunur / kaygan değil. unlock: kaçıncı müşteride açılır.
 // soft: üstüne binen ağırlıkla ne kadar ezilir (0 = tahta gibi, 1 = sünger)
 const ING = {
-  bunB : {name:'Alt Ekmek', col:0xd9a05a, col2:0xf3d9a8, h:0.26, grip:1.30, soft:0.35, unlock:0, kind:'bunB'},
-  patty: {name:'Köfte',     col:0x6d3d21, col2:0x4a2513, h:0.26, grip:1.15, soft:0.28, unlock:0, kind:'patty'},
-  cheese:{name:'Peynir',    col:0xf7b52a, col2:0xffd469, h:0.10, grip:0.78, soft:0.62, unlock:0, kind:'slice'},
-  lettuce:{name:'Marul',    col:0x74c94e, col2:0xa7e07a, h:0.16, grip:0.52, soft:0.88, unlock:3, kind:'leaf'},
-  tomato:{name:'Domates',   col:0xdb3a2c, col2:0xf4776a, h:0.16, grip:0.46, soft:0.72, unlock:5, kind:'tomato'},
-  onion :{name:'Soğan',     col:0xcf90e0, col2:0xeccdf3, h:0.14, grip:0.60, soft:0.50, unlock:8, kind:'ring'},
-  bacon :{name:'Pastırma',  col:0xc4564a, col2:0xefc3b4, h:0.11, grip:0.95, soft:0.45, unlock:11,kind:'strip'},
-  bunT : {name:'Üst Ekmek', col:0xe3ab5e, col2:0xf6dda6, h:0.42, grip:1.00, soft:0.45, unlock:0, kind:'bunT'},
+  bunB : {name:'Alt Ekmek', col:0xb9773a, col2:0xe6c88f, h:0.26, grip:1.30, soft:0.35, size:1.00, unlock:0, kind:'bunB'},
+  patty: {name:'Köfte',     col:0x5d3218, col2:0x3d1d0e, h:0.26, grip:1.15, soft:0.28, size:0.94, unlock:0, kind:'patty'},
+  cheese:{name:'Peynir',    col:0xffa219, col2:0xffcb52, h:0.10, grip:0.78, soft:0.62, size:1.06, unlock:0, kind:'slice'},
+  lettuce:{name:'Marul',    col:0x5fb33c, col2:0x93d167, h:0.16, grip:0.52, soft:0.88, size:1.02, unlock:3, kind:'leaf'},
+  tomato:{name:'Domates',   col:0xcf2f22, col2:0xe86558, h:0.16, grip:0.46, soft:0.72, size:0.82, unlock:5, kind:'tomato'},
+  onion :{name:'Soğan',     col:0xb87ac9, col2:0xdcb6e6, h:0.14, grip:0.60, soft:0.50, size:0.64, unlock:8, kind:'ring'},
+  bacon :{name:'Pastırma',  col:0xa8443a, col2:0xd9a293, h:0.11, grip:0.95, soft:0.45, size:0.88, unlock:11,kind:'strip'},
+  bunT : {name:'Üst Ekmek', col:0xc98b47, col2:0xe9d09a, h:0.42, grip:1.00, soft:0.45, size:1.00, unlock:0, kind:'bunT'},
 };
 const FILLERS = ['patty','cheese','lettuce','tomato','onion','bacon'];
 
@@ -295,13 +297,13 @@ function initScene(){
   document.getElementById('app').appendChild(renderer.domElement);
 
   // ışıklar
-  scene.add(new THREE.HemisphereLight(0xffe7c4, 0x3a2438, 0.85));
-  const sun = new THREE.DirectionalLight(0xfff0d0, 1.05);
+  scene.add(new THREE.HemisphereLight(0xffe7c4, 0x3a2438, 0.52));
+  const sun = new THREE.DirectionalLight(0xffeccb, 0.72);
   sun.position.set(-4,9,5); sun.castShadow = true;
   sun.shadow.mapSize.set(1024,1024);
   const d=8; Object.assign(sun.shadow.camera,{left:-d,right:d,top:d,bottom:-d,near:1,far:26});
   scene.add(sun);
-  const fill = new THREE.DirectionalLight(0xff9d6b, 0.35);
+  const fill = new THREE.DirectionalLight(0xff9d6b, 0.20);
   fill.position.set(5,3,-4); scene.add(fill);
 
   // zemin
@@ -327,7 +329,7 @@ function initScene(){
     const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.17,10,8),
       new THREE.MeshBasicMaterial({color:0xfff2c0}));
     bulb.position.set(x,5.35,-3.2); scene.add(bulb);
-    const pl = new THREE.PointLight(0xffd39a, 0.5, 14); pl.position.set(x,5.1,-3.2);
+    const pl = new THREE.PointLight(0xffd39a, 0.32, 14); pl.position.set(x,5.1,-3.2);
     scene.add(pl);
   });
 
@@ -351,7 +353,7 @@ function buildCounter(){
   body.castShadow = body.receiveShadow = true; g.add(body);
   // üst plaka
   const top = new THREE.Mesh(new THREE.BoxGeometry(17.4,0.16,2.9),
-    new THREE.MeshStandardMaterial({color:0xd9d4cc, roughness:.4, metalness:.25}));
+    new THREE.MeshStandardMaterial({color:0xbdb5a8, roughness:.55, metalness:.15}));
   top.position.y = -0.08; top.receiveShadow = true; g.add(top);
   // kesme tahtası (bırakma alanı işareti)
   const board = new THREE.Mesh(new THREE.CylinderGeometry(1.05,1.05,0.06,32),
@@ -386,7 +388,7 @@ function buildCounter(){
     new THREE.MeshStandardMaterial({color:0x7a4e33, roughness:.85}));
   prep.position.set(0,-2.08,4.30);   // üst yüzü plakanın ALTINDA kalsın prep.castShadow = prep.receiveShadow = true; g.add(prep);
   const prepTop = new THREE.Mesh(new THREE.BoxGeometry(17.4,0.16,6.8),
-    new THREE.MeshStandardMaterial({color:0xcfc9c0, roughness:.45, metalness:.2}));
+    new THREE.MeshStandardMaterial({color:0xb3aa9d, roughness:.6, metalness:.12}));
   prepTop.position.set(0,-1.15,4.30); prepTop.receiveShadow = true; g.add(prepTop);
   PREP_TOP = -1.07;
 
@@ -567,7 +569,8 @@ function mkIngMesh(key, scale=1){
     m.children.forEach(c=>{ c.position.y -= d.h*0.5; });
 
   m.traverse(o=>{ if(o.isMesh){o.castShadow=true;o.receiveShadow=true;} });
-  m.scale.multiplyScalar(scale);
+  const sz = d.size || 1;
+  m.scale.set(scale*sz, scale, scale*sz);   // yatay kapsama malzemeye göre değişir
   return m;
 }
 
@@ -704,6 +707,7 @@ function spawnCustomer(){
   S.order = rec.items;
   S.orderName = rec.name;
   S.step = 0;
+  buildNeed();
   S.patienceMax = 18 + S.order.length * 4.6;   // kurma + taşıma için yeterli olsun
   S.patience = 1;
   S.custX = 0;   // müşteri her zaman tezgahın tam ortasında durur
@@ -763,6 +767,27 @@ function makeOrder(){
   return cands[0];
 }
 
+// Sipariş artık SIRALI değil: fişte adet yazar (2x Köfte gibi), oyuncu
+// istediği sırada koyar. Tek kural: alt ekmek en altta, üst ekmek en üstte.
+function buildNeed(){
+  S.need = {};
+  S.order.forEach(k=>{ if(k!=='bunB' && k!=='bunT') S.need[k] = (S.need[k]||0) + 1; });
+}
+function fillersLeft(){
+  return Object.values(S.need || {}).reduce((a,b)=>a+b, 0);
+}
+function accepts(key){
+  if(!S.layers.length) return key === 'bunB';
+  if(fillersLeft() > 0) return key !== 'bunB' && key !== 'bunT' && (S.need[key]||0) > 0;
+  return key === 'bunT';
+}
+function nextKeys(){
+  if(!S.playing || S.phase !== 'build') return [];
+  if(!S.layers.length) return ['bunB'];
+  if(fillersLeft() > 0) return Object.keys(S.need).filter(k => S.need[k] > 0);
+  return ['bunT'];
+}
+
 /* ---------------------------- FİZİK / KULE --------------------------- */
 function stackTopY(){
   let y = counterTop + S.base.y;
@@ -782,7 +807,7 @@ function addLayer(key, offX, offZ, fallH, throwV=0){
   const y = stackTopY() + d.h*0.5;
   // restX/restZ: katmanın bir alttakine göre KALICI oturma sapması.
   // Yay bu noktaya geri toplar; yani kötü yerleştirme düzelmez, sadece salınım söner.
-  const L = {mesh, ing:key, h:d.h, y, restX:offX, restZ:offZ, sq:0,
+  const L = {mesh, ing:key, h:d.h, y, restX:offX, restZ:offZ, sq:0, size:d.size||1,
              px: top.x + offX, pz: top.z + offZ, vx:0, vz:0, grip:d.grip};
   mesh.position.set(L.px, y, L.pz);
   stackGroup.add(mesh);
@@ -869,15 +894,18 @@ function stepPhysics(dt){
     // bir alttakinden tamamen kayıp düştü mü
     const slide = Math.hypot(L.px-bx, L.pz-bz);
     if(slide > maxSlideSeen) maxSlideSeen = slide;
-    if(slide > CFG.maxSlide){ collapse(); return; }
+    // destek alanı iki katmanın DAR olanına göre: soğan gibi küçük malzemeler kuleyi hassaslaştırır
+    const tutma = Math.min(L.size, i>0 ? S.layers[i-1].size : 1);
+    if(slide > CFG.maxSlide * tutma){ collapse(); return; }
   }
   // ağırlık merkezi tabağı aştı mı
   let cx=0, cz=0;
   S.layers.forEach(L=>{ cx+=L.px; cz+=L.pz; });
   cx = cx/n - S.layers[0].px; cz = cz/n - S.layers[0].pz;
   const comR = Math.hypot(cx,cz);
-  S.danger = Math.max(comR/CFG.baseHalf, maxSlideSeen/CFG.maxSlide);
-  if(comR > CFG.baseHalf){ collapse(); return; }
+  const tabanR = CFG.baseHalf * S.layers[0].size;
+  S.danger = Math.max(comR/tabanR, maxSlideSeen/CFG.maxSlide);
+  if(comR > tabanR){ collapse(); return; }
 
   // ezilme: üstteki katman sayısına göre kalıcı yassılaşma + darbenin geri açılması
   let yAcc = counterTop + S.base.y;
@@ -891,7 +919,8 @@ function stepPhysics(dt){
     L.y = yAcc + hEff*0.5;
     yAcc += hEff;
     // ezilen malzeme yanlara yayılır
-    L.mesh.scale.set(1 + L.sq*0.34, 1 - L.sq, 1 + L.sq*0.34);
+    const sz = L.size;
+    L.mesh.scale.set(sz*(1 + L.sq*0.34), 1 - L.sq, sz*(1 + L.sq*0.34));
   }
 
   // görsel: eğim + konum
@@ -1220,9 +1249,8 @@ function onUp(e){
   // tezgah bırakma alanı dışı → iptal
   if(Math.abs(dropX - BUILD.x) > 1.5){ return; }
 
-  // doğru malzeme mi
-  const expected = S.order[S.step];
-  if(key !== expected){
+  // istenen malzemelerden biri mi (sıra serbest, adet önemli)
+  if(!accepts(key)){
     toast('YANLIŞ!', '#ff6b6b');
     sfx('error');
     S.patience = Math.max(0, S.patience - 0.18);
@@ -1237,6 +1265,7 @@ function onUp(e){
   const fallH = Math.max(0, dropY - (stackTopY() + ING[key].h*0.5));
 
   const L = addLayer(key, offX, offZ, fallH, throwV);
+  if(key !== 'bunB' && key !== 'bunT') S.need[key]--;
   S.step++;
   renderOrder();
 
@@ -1270,13 +1299,21 @@ function renderOrder(){
   head.className = 'ohead';
   head.textContent = S.orderName || 'Sipariş';
   b.appendChild(head);
-  S.order.forEach((k,i)=>{
+  const kabul = nextKeys();
+  const satir = (k, kalan, toplam)=>{
     const row = document.createElement('div');
-    row.className = 'row' + (i<S.step ? ' done' : (i===S.step ? ' next' : ''));
+    row.className = 'row' + (kalan <= 0 ? ' done' : (kabul.includes(k) ? ' next' : ''));
+    const adet = toplam > 1 ? `<span class="cnt">${kalan}/${toplam}</span>` : '';
     row.innerHTML = `<span class="sw" style="background:${hex(ING[k].col)}"></span>`
-                  + `<span class="lbl">${ING[k].name}</span>`;
+                  + adet + `<span class="lbl">${ING[k].name}</span>`;
     b.appendChild(row);
-  });
+  };
+  // alt ekmek en altta, üst ekmek en üstte; aradakiler serbest sırada
+  satir('bunB', S.layers.length ? 0 : 1, 1);
+  const toplamlar = {};
+  S.order.forEach(k=>{ if(k!=='bunB'&&k!=='bunT') toplamlar[k]=(toplamlar[k]||0)+1; });
+  Object.keys(toplamlar).forEach(k=> satir(k, (S.need&&S.need[k])||0, toplamlar[k]));
+  satir('bunT', S.step >= S.order.length ? 0 : 1, 1);
 }
 
 let toastTO;
@@ -1470,10 +1507,10 @@ function animateCustomer(dt){
 }
 
 function animateShelves(now){
-  const need = S.playing && S.phase === 'build' ? S.order[S.step] : null;
+  const kabul = nextKeys();
   shelfSlots.forEach((s,i)=>{
     if(!s.item) return;
-    const isNext = s.key === need;
+    const isNext = kabul.includes(s.key);
     const pulse = isNext ? (0.5 + Math.sin(now/180)*0.5) : 0;
     s.item.position.y = s.idleY + Math.sin(now/600 + i)*0.03 + pulse*0.10;
     s.item.rotation.y += isNext ? 0.012 : 0.004;
