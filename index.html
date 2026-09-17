@@ -1,0 +1,1583 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Burger Stack</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{width:100%;height:100%;overflow:hidden;background:#1b1020;
+    font-family:-apple-system,"Segoe UI",Roboto,sans-serif;user-select:none;touch-action:none}
+  #app{position:fixed;inset:0}
+  canvas{display:block}
+
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column}
+  .topbar{display:flex;align-items:center;gap:8px;padding:10px 12px}
+  .chip{background:rgba(0,0,0,.42);backdrop-filter:blur(6px);border-radius:14px;
+    padding:7px 12px;color:#fff;font-weight:700;font-size:15px;line-height:1;
+    display:flex;align-items:center;gap:6px}
+  .chip small{font-size:10px;opacity:.6;font-weight:600;letter-spacing:.5px}
+  #timeChip.warn{background:rgba(196,42,58,.75);animation:pulse .7s infinite alternate}
+  @keyframes pulse{to{transform:scale(1.06)}}
+  #lives{letter-spacing:2px;font-size:16px}
+  #comboChip{background:linear-gradient(180deg,rgba(255,150,40,.85),rgba(220,70,40,.85));
+    color:#fff;font-size:14px}
+  .spacer{flex:1}
+  .ibtn{pointer-events:auto;border:none;cursor:pointer;font-size:15px;padding:7px 10px}
+
+  /* order bubble */
+  #orderWrap{position:fixed;left:10px;top:56px;display:flex;flex-direction:column;
+    align-items:flex-start;gap:6px;transition:opacity .25s}
+  #bubble{background:rgba(255,255,255,.93);border-radius:14px;padding:6px 7px;
+    box-shadow:0 8px 24px rgba(0,0,0,.35);display:flex;flex-direction:column-reverse;gap:3px;
+    align-items:stretch}
+  #bubble .row{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:800;
+    color:#3a2a18;padding:2px 3px;border-radius:7px;transition:.2s}
+  #bubble .row .lbl{display:none;white-space:nowrap;padding-right:3px}
+  #bubble .row.next .lbl{display:inline}
+  #bubble .row.done{opacity:.33;text-decoration:line-through}
+  #bubble .row.next{background:#ffe9a8;box-shadow:0 0 0 2px #f5c451 inset}
+  #bubble .ohead{order:99;font-size:9px;font-weight:900;letter-spacing:.8px;
+    color:#a06a2a;text-transform:uppercase;padding:0 3px 3px;border-bottom:2px solid #f1e2c4;
+    margin-bottom:2px;text-align:center;max-width:110px}
+  #bubble .sw{width:15px;height:15px;border-radius:5px;flex:none;
+    box-shadow:0 1px 2px rgba(0,0,0,.3) inset,0 1px 1px rgba(0,0,0,.2)}
+  #patienceOuter{width:86px;height:8px;border-radius:9px;background:rgba(0,0,0,.45);overflow:hidden}
+  #patience{height:100%;width:100%;border-radius:9px;background:#5ad469;
+    transition:width .12s linear,background .3s}
+
+  /* sinirli müşteri baloncuğu */
+  #rage{position:fixed;left:0;top:0;transform:translate(-50%,-100%) scale(.5);
+    background:#fff;border-radius:16px;padding:9px 14px;pointer-events:none;opacity:0;
+    box-shadow:0 8px 22px rgba(0,0,0,.4);z-index:5;
+    transition:opacity .12s,transform .12s}
+  #rage::after{content:'';position:absolute;left:50%;bottom:-9px;margin-left:-8px;
+    width:0;height:0;border:8px solid transparent;border-top-color:#fff;border-bottom:0}
+  #rage.show{opacity:1;transform:translate(-50%,-100%) scale(1);
+    animation:rageShake .22s infinite alternate}
+  @keyframes rageShake{from{transform:translate(-50%,-100%) rotate(-4deg) scale(1)}
+                       to{transform:translate(-50%,-100%) rotate(4deg) scale(1.07)}}
+  #rageTxt{font-size:23px;font-weight:900;letter-spacing:1px;color:#d8342c;
+    font-family:"Courier New",monospace;white-space:nowrap}
+
+  /* tehlike uyarısı */
+  #danger{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .12s;
+    background:radial-gradient(ellipse at 50% 55%,rgba(255,0,0,0) 22%,rgba(225,25,35,.92) 100%)}
+  #dangerTxt{position:fixed;left:0;right:0;top:36%;text-align:center;color:#ff5a5a;
+    font-size:22px;font-weight:900;letter-spacing:2px;opacity:0;pointer-events:none;
+    text-shadow:0 2px 10px rgba(0,0,0,.6)}
+
+  /* toast */
+  #toast{position:fixed;left:50%;top:44%;transform:translate(-50%,-50%) scale(.8);
+    font-size:30px;font-weight:900;color:#fff;text-shadow:0 4px 14px rgba(0,0,0,.6);
+    opacity:0;transition:.18s;pointer-events:none;white-space:nowrap}
+  #toast.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+
+  /* hint */
+  #hint{position:fixed;left:0;right:0;bottom:16px;text-align:center;color:#fff;
+    font-size:13px;font-weight:600;opacity:.75;pointer-events:none;transition:opacity .4s}
+
+  /* ---------- screens ---------- */
+  .screen{position:fixed;inset:0;background:rgba(18,10,24,.88);backdrop-filter:blur(8px);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+    color:#fff;text-align:center;padding:24px;z-index:10}
+  .screen.hide{display:none}
+  .screen h1{font-size:40px;font-weight:900;letter-spacing:-1px;
+    background:linear-gradient(180deg,#ffd86b,#f08a3c);-webkit-background-clip:text;
+    -webkit-text-fill-color:transparent}
+  .screen p{font-size:15px;line-height:1.55;opacity:.85;max-width:320px}
+  .screen b{color:#ffd86b}
+  .btn{pointer-events:auto;margin-top:6px;background:linear-gradient(180deg,#ffd063,#f0902f);
+    color:#40210a;border:none;border-radius:16px;padding:15px 38px;font-size:19px;
+    font-weight:900;box-shadow:0 7px 0 #b9651c,0 12px 22px rgba(0,0,0,.4);cursor:pointer}
+  .btn:active{transform:translateY(4px);box-shadow:0 3px 0 #b9651c}
+  #finalScore{font-size:58px;font-weight:900;color:#ffd86b;line-height:1}
+  .statline{font-size:14px;opacity:.8}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="hud">
+  <div class="topbar">
+    <div class="chip" id="timeChip"><small>SÜRE</small><span id="timeVal">120</span></div>
+    <div class="chip"><small>SKOR</small><span id="scoreVal">0</span></div>
+    <div class="chip" id="comboChip" style="display:none">🔥 <span id="comboVal">x1</span></div>
+    <div class="spacer"></div>
+    <div class="chip"><span id="lives">❤❤❤</span></div>
+    <button class="chip ibtn" id="muteBtn">🔊</button>
+    <button class="chip ibtn" id="pauseBtn">⏸</button>
+  </div>
+  <div id="orderWrap" style="opacity:0">
+    <div id="bubble"></div>
+    <div id="patienceOuter"><div id="patience"></div></div>
+  </div>
+</div>
+
+<div id="rage"><span id="rageTxt"></span></div>
+<div id="danger"></div>
+<div id="dangerTxt">DENGE!</div>
+<div id="toast"></div>
+<div id="hint">Malzemeyi tut, tezgaha sürükle, bırak</div>
+
+<div class="screen" id="startScreen">
+  <h1>BURGER STACK</h1>
+  <p>Müşterinin siparişini <b>alttan üste</b> doğru sırayla diz.
+     Malzemeyi <b>alttaki kutulardan</b> tutup tezgaha sürükle.<br><br>
+     Ortaya ve <b>alçaktan</b> bırak — kenardan ya da yüksekten bırakırsan kule sallanır ve devrilir.</p>
+  <div class="statline" id="startBest"></div>
+  <button class="btn" id="startBtn">VARDİYAYI BAŞLAT</button>
+</div>
+
+<div class="screen hide" id="pauseScreen">
+  <h1>DURAKLATILDI</h1>
+  <button class="btn" id="resumeBtn">DEVAM</button>
+</div>
+
+<div class="screen hide" id="endScreen">
+  <h1 id="endTitle">VARDİYA BİTTİ</h1>
+  <div id="finalScore">0</div>
+  <div class="statline" id="endStats"></div>
+  <div class="statline" id="bestLine" style="color:#ffd86b;opacity:1;font-weight:800"></div>
+  <button class="btn" id="againBtn">TEKRAR</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* =========================================================================
+   BURGER STACK — 3D burger stacking / serving game
+   Tek dosya. three.js r128 + özel hafif "kule eğilme" fiziği.
+   ========================================================================= */
+
+/* ------------------------------ AYARLAR ------------------------------ */
+const CFG = {
+  shiftTime : 120,      // vardiya süresi (sn)
+  lives     : 3,
+  baseHalf  : 0.62,     // taban destek yarıçapı — COM bunu aşarsa devrilir
+  maxSlide  : 0.72,     // iki katman arası maksimum kayma
+  springK   : 90,       // katman kendi "oturduğu" yere geri toplanır (salınım sertliği)
+  damping   : 7.5,
+  toppleG   : 1.1,      // eğimi büyüten tork — düzgün kule kararlı kalmalı, eğik kule büyümeli
+  dropGain  : 0.85,     // bırakma yüksekliğinin darbeye katkısı
+  serveScore: 22,       // katman başına baz puan
+  missScore : -30,      // sabrı biten müşteri
+  squashMax : 0.34,     // bir katman en fazla bu oranda ezilir
+  squashLoad: 0.055,    // üstteki her katmanın kalıcı ezme payı
+  perfectBonus: 12,     // mükemmel yerleştirme başına
+  comboStep : 0.25,     // her ardışık serviste çarpan artışı
+  comboMax  : 3.0,
+  carrySpeed: 2.2,      // tabağın en fazla hareket hızı (birim/sn) — savrulmanın kaynağı
+  carryDamp : 1.35,       // taşırken ekstra sönümleme
+  carryTopple:0.8,       // taşırken devirici tork çarpanı
+  shakeSpeed: 7.5,      // kurarken tabağı elle sallama hızı (hızlı → sert savrulma)
+  shakeRangeX: 1.15,    // tahtada sağa-sola ne kadar kaydırılabilir
+  grabK     : 150,
+  handFollow: 16,       // elde tutulan malzeme parmağı ne kadar sıkı takip eder (düşük = daha çok sallanır)
+  handTilt  : 0.07,     // savururken malzemenin eğilme miktarı
+  throwOff  : 0.07,     // bırakırken yatay hızın oturma sapmasına etkisi
+  throwHit  : 0.22,     // bırakırken yatay hızın kuleye darbesi
+      // tutulan malzemenin parmağa çekilme sertliği
+  slipVel   : 1.1,      // katmanlar arası göreli hız bunu aşarsa malzeme kayar
+  slipRate  : 0.55,     // kaymanın kalıcı sapmaya dönüşme oranı (düşük grip = daha çok)
+};
+const BUILD   = {x:0, z:0.35};   // burgerin kurulduğu tahta
+const DELIVER = {z:-1.05, r:0.8};// teslim noktası (müşterinin x'i)
+// müşterinin kafası: -0.30 + 1.52*1.45 ≈ 1.90. Tabak buraya kaldırılmalı.
+const LIFT = {maxH:2.35, needH:1.45, z:-1.35, xTol:0.6};
+
+/* ---------------------------- MALZEMELER ---------------------------- */
+// grip: yüksek = tutunur / kaygan değil. unlock: kaçıncı müşteride açılır.
+// soft: üstüne binen ağırlıkla ne kadar ezilir (0 = tahta gibi, 1 = sünger)
+const ING = {
+  bunB : {name:'Alt Ekmek', col:0xd9a05a, col2:0xf3d9a8, h:0.26, grip:1.30, soft:0.35, unlock:0, kind:'bunB'},
+  patty: {name:'Köfte',     col:0x6d3d21, col2:0x4a2513, h:0.26, grip:1.15, soft:0.28, unlock:0, kind:'patty'},
+  cheese:{name:'Peynir',    col:0xf7b52a, col2:0xffd469, h:0.10, grip:0.78, soft:0.62, unlock:0, kind:'slice'},
+  lettuce:{name:'Marul',    col:0x74c94e, col2:0xa7e07a, h:0.16, grip:0.52, soft:0.88, unlock:3, kind:'leaf'},
+  tomato:{name:'Domates',   col:0xdb3a2c, col2:0xf4776a, h:0.16, grip:0.46, soft:0.72, unlock:5, kind:'tomato'},
+  onion :{name:'Soğan',     col:0xcf90e0, col2:0xeccdf3, h:0.14, grip:0.60, soft:0.50, unlock:8, kind:'ring'},
+  bacon :{name:'Pastırma',  col:0xc4564a, col2:0xefc3b4, h:0.11, grip:0.95, soft:0.45, unlock:11,kind:'strip'},
+  bunT : {name:'Üst Ekmek', col:0xe3ab5e, col2:0xf6dda6, h:0.42, grip:1.00, soft:0.45, unlock:0, kind:'bunT'},
+};
+const FILLERS = ['patty','cheese','lettuce','tomato','onion','bacon'];
+
+/* ------------------------------ DURUM ------------------------------- */
+const S = {
+  playing:false, paused:false, time:CFG.shiftTime, score:0, lives:CFG.lives,
+  served:0, missed:0, collapsed:0, customerNo:0,
+  layers:[],            // {mesh, px, pz, vx, vz, ing, h, y}
+  order:[], step:0,
+  patience:1, patienceMax:1,
+  customer:null, custState:'none', // none|walk|wait|leave
+  collapsing:0, danger:0,
+  drag:null,            // {mesh, ing, key}
+  unlocked:[],
+  orderName:'',
+  phase:'build',        // build | carry
+  base:{x:BUILD.x, y:0, z:BUILD.z},   // tabağın konumu
+  baseT:{x:BUILD.x, y:0, z:BUILD.z},  // parmağın gösterdiği hedef (tabak buraya hız sınırıyla gider)
+  baseV:{x:0, y:0, z:0}, baseAy:0,              // tabağın anlık hızı (sönümleme bu referansa göre)
+  carrying:false,
+  combo:0, perfects:0,
+  custX:0,
+};
+
+/* ------------------------------ SAHNE ------------------------------- */
+let scene, camera, renderer, raycaster, dragPlane, carryPlane;
+let counterTop, PREP_TOP = -1.07, shelfSlots = [], stackGroup, debris = [];
+let plateMesh, deliverRing, particles = [], shake = 0;
+let camZ = 14, camY = 5.4, camTarget = new THREE.Vector3(0,1.4,0);
+let baseZ = 14, baseY = 5.4;
+const VIEW_HALF = 2.05;   // ekranda görmek istediğimiz yatay yarı-genişlik
+const VIEW_VERT = 2.55;   // dikey yarı-yükseklik: ön grid ile müşterinin başı arası
+function computeCamBase(){
+  const asp = innerWidth/innerHeight;
+  const t = Math.tan(THREE.MathUtils.degToRad(CAM_FOV/2));
+  // hem yatay hem dikey sığdır: geniş ekranda dikey, dikey ekranda yatay belirleyici olur
+  baseZ = THREE.MathUtils.clamp(Math.max(VIEW_HALF/(t*asp), VIEW_VERT/t), 8, 32);
+  baseY = 0.80 + baseZ*0.42;   // referanstaki gibi daha tepeden bakış
+}
+const CAM_FOV = 52;
+
+function initScene(){
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x2a1830);
+  scene.fog = new THREE.Fog(0x2a1830, 22, 48);
+
+  camera = new THREE.PerspectiveCamera(CAM_FOV, innerWidth/innerHeight, 0.1, 160);
+  renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  document.getElementById('app').appendChild(renderer.domElement);
+
+  // ışıklar
+  scene.add(new THREE.HemisphereLight(0xffe7c4, 0x3a2438, 0.85));
+  const sun = new THREE.DirectionalLight(0xfff0d0, 1.05);
+  sun.position.set(-4,9,5); sun.castShadow = true;
+  sun.shadow.mapSize.set(1024,1024);
+  const d=8; Object.assign(sun.shadow.camera,{left:-d,right:d,top:d,bottom:-d,near:1,far:26});
+  scene.add(sun);
+  const fill = new THREE.DirectionalLight(0xff9d6b, 0.35);
+  fill.position.set(5,3,-4); scene.add(fill);
+
+  // zemin
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(40,40),
+    new THREE.MeshStandardMaterial({color:0x3d2340, roughness:.95}));
+  floor.rotation.x = -Math.PI/2; floor.position.y = -3.3;
+  floor.receiveShadow = true; scene.add(floor);
+
+  // arka duvar
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(40,18),
+    new THREE.MeshStandardMaterial({color:0x4a2a4e, roughness:1}));
+  wall.position.set(0,6,-9); scene.add(wall);
+
+  // sarkıt lambalar
+  [-2.6,2.6].forEach(x=>{
+    const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,2.2,6),
+      new THREE.MeshBasicMaterial({color:0x1d1220}));
+    cord.position.set(x,6.9,-3.2); scene.add(cord);
+    const shade = new THREE.Mesh(new THREE.ConeGeometry(0.62,0.6,18,1,true),
+      new THREE.MeshStandardMaterial({color:0xf0a23c, side:THREE.DoubleSide, roughness:.6}));
+    shade.position.set(x,5.6,-3.2); scene.add(shade);
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.17,10,8),
+      new THREE.MeshBasicMaterial({color:0xfff2c0}));
+    bulb.position.set(x,5.35,-3.2); scene.add(bulb);
+    const pl = new THREE.PointLight(0xffd39a, 0.5, 14); pl.position.set(x,5.1,-3.2);
+    scene.add(pl);
+  });
+
+  buildCounter();
+  buildShelves();
+
+  stackGroup = new THREE.Group(); scene.add(stackGroup);
+
+  raycaster = new THREE.Raycaster();
+  dragPlane  = new THREE.Plane(new THREE.Vector3(0,0,1), -BUILD.z); // dikey: malzeme sürükleme
+  carryPlane = new THREE.Plane(new THREE.Vector3(0,1,0), -counterTop); // yatay: tabak taşıma
+  resize();
+}
+
+function buildCounter(){
+  const g = new THREE.Group();
+  // tezgah gövdesi
+  const body = new THREE.Mesh(new THREE.BoxGeometry(4.0,2.7,2.6),
+    new THREE.MeshStandardMaterial({color:0x8a5a3a, roughness:.8}));
+  body.position.y = -1.52;   // üst yüzü plakanın ALTINDA kalsın (aynı düzlemde olmasın)
+  body.castShadow = body.receiveShadow = true; g.add(body);
+  // üst plaka
+  const top = new THREE.Mesh(new THREE.BoxGeometry(4.3,0.16,2.9),
+    new THREE.MeshStandardMaterial({color:0xd9d4cc, roughness:.4, metalness:.25}));
+  top.position.y = -0.08; top.receiveShadow = true; g.add(top);
+  // kesme tahtası (bırakma alanı işareti)
+  const board = new THREE.Mesh(new THREE.CylinderGeometry(1.05,1.05,0.06,32),
+    new THREE.MeshStandardMaterial({color:0xb98551, roughness:.7}));
+  board.position.set(BUILD.x, 0.035, BUILD.z); board.receiveShadow = true; g.add(board);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.90,1.02,40),
+    new THREE.MeshBasicMaterial({color:0xffd86b, transparent:true, opacity:.32,
+      side:THREE.DoubleSide}));
+  ring.rotation.x = -Math.PI/2; ring.position.set(BUILD.x, 0.085, BUILD.z); g.add(ring);
+  counterTop = 0.155;   // katmanların oturduğu yükseklik = tahta + tabak
+
+  // yan dekor: ketçap / hardal / peçetelik
+  const bottle = (x,col)=>{
+    const b = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.19,0.52,14),
+      new THREE.MeshStandardMaterial({color:col, roughness:.45}));
+    body.position.y = 0.26; b.add(body);
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.13,0.2,12),
+      new THREE.MeshStandardMaterial({color:0x33242c}));
+    cap.position.y = 0.62; b.add(cap);
+    b.position.set(x, 0, -1.05);
+    b.traverse(o=>{ if(o.isMesh) o.castShadow = true; });
+    return b;
+  };
+  g.add(bottle(-1.62,0xd8342c), bottle(-1.30,0xf0c020));
+  const nap = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.34,0.4),
+    new THREE.MeshStandardMaterial({color:0xe8e2d8, roughness:.8}));
+  nap.position.set(1.55,0.17,-1.02); nap.castShadow = true; g.add(nap);
+
+  // ÖN HAZIRLIK TEZGAHI — malzeme gridi burada durur (ekranın alt bandı)
+  const prep = new THREE.Mesh(new THREE.BoxGeometry(4.3,1.6,2.1),
+    new THREE.MeshStandardMaterial({color:0x7a4e33, roughness:.85}));
+  prep.position.set(0,-2.08,2.6);   // üst yüzü plakanın ALTINDA kalsın prep.castShadow = prep.receiveShadow = true; g.add(prep);
+  const prepTop = new THREE.Mesh(new THREE.BoxGeometry(4.5,0.16,2.3),
+    new THREE.MeshStandardMaterial({color:0xcfc9c0, roughness:.45, metalness:.2}));
+  prepTop.position.set(0,-1.15,2.6); prepTop.receiveShadow = true; g.add(prepTop);
+  PREP_TOP = -1.07;
+
+  // tezgah ön yüzü: fayans şeridi
+  for(let i=0;i<2;i++){
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(4.04,0.18,0.04),
+      new THREE.MeshStandardMaterial({color:i?0xf0c05a:0xd8342c, roughness:.7}));
+    stripe.position.set(0,-0.42-i*0.26,1.32); g.add(stripe);
+  }
+  for(let i=-1;i<=1;i++){
+    const tile = new THREE.Mesh(new THREE.BoxGeometry(0.62,0.52,0.04),
+      new THREE.MeshStandardMaterial({color:0x9a6540, roughness:.85}));
+    tile.position.set(i*0.95,-1.05,1.32); g.add(tile);
+  }
+
+  scene.add(g);
+
+  // servis tabağı (burger bunun üstünde taşınır)
+  plateMesh = new THREE.Group();
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.95,0.80,0.09,28),
+    new THREE.MeshStandardMaterial({color:0xf4f1ea, roughness:.35, metalness:.1}));
+  disc.castShadow = disc.receiveShadow = true; plateMesh.add(disc);
+  const lip = new THREE.Mesh(new THREE.TorusGeometry(0.93,0.052,8,30),
+    new THREE.MeshStandardMaterial({color:0xe6dfd2, roughness:.4}));
+  lip.rotation.x = Math.PI/2; lip.position.y = 0.045; plateMesh.add(lip);
+  plateMesh.position.set(BUILD.x, 0.11, BUILD.z);
+  plateMesh.visible = false;
+  scene.add(plateMesh);
+
+  // teslim halkası
+  deliverRing = new THREE.Mesh(new THREE.RingGeometry(0.58,0.86,44),
+    new THREE.MeshBasicMaterial({color:0x5cff8a, transparent:true, opacity:.85,
+      side:THREE.DoubleSide, depthWrite:false}));
+  deliverRing.rotation.x = -Math.PI/2;
+  deliverRing.position.set(0, 0.09, DELIVER.z);
+  deliverRing.visible = false;
+  scene.add(deliverRing);
+}
+
+function mkIngMesh(key, scale=1){
+  const d = ING[key];
+  const mat  = new THREE.MeshStandardMaterial({color:d.col,  roughness:.58});
+  const mat2 = new THREE.MeshStandardMaterial({color:d.col2, roughness:.5});
+  const lathe = (prof, material, seg=30)=> new THREE.Mesh(
+    new THREE.LatheGeometry(prof.map(q=>new THREE.Vector2(q[0],q[1])), seg), material);
+  let m;
+
+  switch(d.kind){
+    /* --- alt ekmek: yuvarlatılmış taban, üstü kesik --- */
+    case 'bunB':{
+      m = new THREE.Group();
+      const b = lathe([[0,0],[0.52,0],[0.80,0.03],[0.90,0.10],[0.91,0.18],[0.80,0.24],[0.5,0.26],[0,0.26]], mat);
+      m.add(b);
+      const crumb = lathe([[0,0.255],[0.78,0.255],[0.80,0.262]], mat2);   // kesik iç yüzey
+      m.add(crumb);
+      break;}
+
+    /* --- üst ekmek: kubbe + susam + alt iç yüzey --- */
+    case 'bunT':{
+      m = new THREE.Group();
+      const dome = lathe([[0,0],[0.91,0],[0.905,0.10],[0.86,0.21],[0.74,0.31],[0.52,0.385],[0.26,0.415],[0,0.42]], mat);
+      m.add(dome);
+      const crumb = lathe([[0,0.008],[0.80,0.008],[0.88,0.02]], mat2);
+      m.add(crumb);
+      const sMat = new THREE.MeshStandardMaterial({color:0xfff3d6, roughness:.45});
+      for(let i=0;i<14;i++){
+        const sd = new THREE.Mesh(new THREE.SphereGeometry(0.052,7,5), sMat);
+        sd.scale.set(1,0.55,1.5);
+        const a = (i*2.399), r = 0.18 + (i/14)*0.62;          // altın açı → düzgün dağılım
+        const t = r/0.91;
+        sd.position.set(Math.cos(a)*r, 0.42*Math.sqrt(Math.max(0,1-t*t))*0.97, Math.sin(a)*r);
+        sd.rotation.y = -a;
+        m.add(sd);
+      }
+      break;}
+
+    /* --- köfte: kalın, kenarları yuvarlak, ızgara izli --- */
+    case 'patty':{
+      m = new THREE.Group();
+      m.add(lathe([[0,0],[0.60,0],[0.82,0.035],[0.87,0.13],[0.82,0.225],[0.60,0.26],[0,0.26]], mat));
+      const char = new THREE.MeshStandardMaterial({color:d.col2, roughness:.85});
+      for(let i=0;i<3;i++){
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(1.5,0.02,0.10), char);
+        bar.position.set(0,0.255,(i-1)*0.30);
+        bar.scale.x = Math.sqrt(Math.max(0.05,1-((i-1)*0.30/0.86)**2));
+        m.add(bar);
+      }
+      break;}
+
+    /* --- peynir: yuvarlatılmış köşeli dilim, kenarlardan sarkan uçlar --- */
+    case 'slice':{
+      const half = 0.70, rad = 0.17;
+      const sh = new THREE.Shape();
+      sh.moveTo(-half+rad,-half);
+      sh.lineTo(half-rad,-half); sh.quadraticCurveTo(half,-half,half,-half+rad);
+      sh.lineTo(half,half-rad);  sh.quadraticCurveTo(half,half,half-rad,half);
+      sh.lineTo(-half+rad,half); sh.quadraticCurveTo(-half,half,-half,half-rad);
+      sh.lineTo(-half,-half+rad);sh.quadraticCurveTo(-half,-half,-half+rad,-half);
+      const g = new THREE.ExtrudeGeometry(sh, {depth:d.h*0.6, bevelEnabled:true,
+        bevelThickness:d.h*0.2, bevelSize:0.05, bevelSegments:2, curveSegments:6});
+      g.rotateX(-Math.PI/2); g.translate(0,-d.h*0.4,0);
+      m = new THREE.Group();
+      m.add(new THREE.Mesh(g, mat));
+      // köşelerden sarkan uçlar
+      for(let i=0;i<4;i++){
+        const a = Math.PI/4 + i*Math.PI/2;
+        const tip = new THREE.Mesh(new THREE.ConeGeometry(0.15,0.2,4), mat2);
+        tip.position.set(Math.cos(a)*0.78,-0.05,Math.sin(a)*0.78);
+        tip.rotation.set(Math.PI,a,0.35);
+        m.add(tip);
+      }
+      m.rotation.y = Math.PI/4;
+      break;}
+
+    /* --- marul: kıvrımlı yapraklar, iki ton --- */
+    case 'leaf':{
+      m = new THREE.Group();
+      const N = 9;
+      for(let i=0;i<N;i++){
+        const a = i/N*Math.PI*2;
+        const leafMat = i%2 ? mat2 : mat;
+        const pt = new THREE.Mesh(new THREE.SphereGeometry(0.34,10,8), leafMat);
+        pt.scale.set(1.25, 0.30 + (i%2)*0.10, 0.85);
+        pt.position.set(Math.cos(a)*0.55, Math.sin(i*1.9)*0.05, Math.sin(a)*0.55);
+        pt.rotation.set((i%2?0.25:-0.2), -a, Math.sin(i)*0.25);
+        m.add(pt);
+      }
+      const core = new THREE.Mesh(new THREE.SphereGeometry(0.42,12,8), mat);
+      core.scale.y = 0.26; m.add(core);
+      break;}
+
+    /* --- domates: dış kabuk + açık iç + çekirdek odacıkları --- */
+    case 'tomato':{
+      m = new THREE.Group();
+      m.add(lathe([[0,0],[0.70,0],[0.84,0.03],[0.84,0.13],[0.70,0.16],[0,0.16]], mat));
+      const pulp = new THREE.Mesh(new THREE.CylinderGeometry(0.66,0.66,0.02,26), mat2);
+      pulp.position.y = 0.162; m.add(pulp);
+      const seedMat = new THREE.MeshStandardMaterial({color:0xffe9b0, roughness:.6});
+      for(let i=0;i<6;i++){
+        const a = i/6*Math.PI*2;
+        const pocket = new THREE.Mesh(new THREE.SphereGeometry(0.15,8,6), seedMat);
+        pocket.scale.set(1,0.12,0.7);
+        pocket.position.set(Math.cos(a)*0.36, 0.172, Math.sin(a)*0.36);
+        pocket.rotation.y = -a; m.add(pocket);
+      }
+      break;}
+
+    /* --- soğan: çift halka --- */
+    case 'ring':{
+      m = new THREE.Group();
+      const outer = new THREE.Mesh(new THREE.TorusGeometry(0.66,0.085,10,26), mat);
+      outer.rotation.x = Math.PI/2; outer.scale.y = 0.8; m.add(outer);
+      const inner = new THREE.Mesh(new THREE.TorusGeometry(0.44,0.062,10,22), mat2);
+      inner.rotation.x = Math.PI/2; inner.scale.y = 0.8; inner.position.y = -0.01; m.add(inner);
+      break;}
+
+    /* --- pastırma: dalgalı, yağ damarlı şeritler --- */
+    case 'strip':{
+      m = new THREE.Group();
+      for(let st=0; st<3; st++){
+        const strip = new THREE.Group();
+        for(let i=0;i<7;i++){
+          const seg = new THREE.Mesh(new THREE.BoxGeometry(0.26,d.h,0.30), i%3===1 ? mat2 : mat);
+          seg.position.set((i-3)*0.24, Math.sin(i*1.25 + st)*0.055, 0);
+          seg.rotation.z = Math.cos(i*1.25 + st)*0.28;
+          strip.add(seg);
+        }
+        strip.position.z = (st-1)*0.36;
+        strip.rotation.y = (st-1)*0.10;
+        m.add(strip);
+      }
+      break;}
+  }
+
+  // lathe profilleri tabandan başlar; katman konumları merkeze göre verildiği için
+  // bu modelleri yarım yükseklik aşağı kaydır
+  if(['bunB','bunT','patty','tomato'].includes(d.kind))
+    m.children.forEach(c=>{ c.position.y -= d.h*0.5; });
+
+  m.traverse(o=>{ if(o.isMesh){o.castShadow=true;o.receiveShadow=true;} });
+  m.scale.multiplyScalar(scale);
+  return m;
+}
+
+/* ------------------------------- RAFLAR ------------------------------ */
+// Malzemeler ekranın en altındaki ön tezgahta 2 sıralı bir gridde durur:
+// 6 malzemeye kadar 3 sütun (3x2), daha fazlasında 4 sütun (4x2).
+// ön sıra kameraya daha yakın olduğu için ekranda daha geniş görünür → aralığı daha dar
+const GRID = {
+  zBack:1.92, zFront:2.98, y:-0.96,
+  3:{back:1.10, front:0.95, tray:0.95, item:0.52},
+  4:{back:0.84, front:0.72, tray:0.72, item:0.40},
+};
+
+// açık üstlü derin kutu (malzemeler bunun içinde durur)
+function mkBin(){
+  const g = new THREE.Group();
+  const wallMat = new THREE.MeshStandardMaterial({color:0x6d4a7a, roughness:.8});
+  const rimMat  = new THREE.MeshStandardMaterial({color:0x9a72ab, roughness:.6});
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(1.0,0.08,1.0), wallMat);
+  floor.receiveShadow = true; g.add(floor);
+  const H = 0.24;
+  [[0,0.47,1.0,0.07],[0,-0.47,1.0,0.07],[0.47,0,0.07,1.0],[-0.47,0,0.07,1.0]]
+  .forEach(([x,z,w,d])=>{
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(w,H,d), wallMat);
+    wall.position.set(x, 0.04+H/2, z);
+    wall.castShadow = wall.receiveShadow = true; g.add(wall);
+    const rim = new THREE.Mesh(new THREE.BoxGeometry(w+0.05,0.04,d+0.05), rimMat);
+    rim.position.set(x, 0.04+H+0.02, z); g.add(rim);
+  });
+  g.userData.mats = [wallMat, rimMat];
+  return g;
+}
+
+function buildShelves(){
+  for(let i=0;i<8;i++){
+    const g = new THREE.Group();
+    const bin = mkBin();
+    g.add(bin);
+    g.visible = false;
+    scene.add(g);
+    shelfSlots.push({group:g, bin, binMats:bin.userData.mats, item:null, key:null});
+  }
+}
+
+// n malzeme için grid konumları (ön sıra ekranda daha altta görünür)
+function gridSpots(n){
+  const cols = n <= 6 ? 3 : 4;
+  const G = GRID[cols];
+  const back = Math.ceil(n/2), front = n - back;
+  const spots = [];
+  const row = (count, z, gap)=>{
+    for(let c=0;c<count;c++)
+      spots.push({x:(c-(count-1)/2)*gap, y:GRID.y, z, tray:G.tray, item:G.item});
+  };
+  row(back,  GRID.zBack,  G.back);
+  row(front, GRID.zFront, G.front);
+  return spots;
+}
+
+function layoutShelves(){
+  const keys = S.unlocked.slice();
+  shelfSlots.forEach(s=>{
+    if(s.item){ s.group.remove(s.item); s.item=null; }
+    s.key=null; s.group.visible=false;
+  });
+  const spots = gridSpots(keys.length);
+  keys.forEach((k,i)=>{
+    const s = shelfSlots[i], sp = spots[i];
+    if(!s || !sp) return;
+    s.key = k; s.group.visible = true;
+    s.group.position.set(sp.x, sp.y, sp.z);
+    s.bin.scale.set(sp.tray, 1, sp.tray);
+    const m = mkIngMesh(k, sp.item);
+    m.position.y = 0.05 + ING[k].h*sp.item*0.5;   // kutunun tabanına otur
+    s.item = m; s.group.add(m);
+    s.idleY = m.position.y;
+    s.baseScale = sp.item;
+    s.mats = [];
+    m.traverse(o=>{ if(o.isMesh) s.mats.push(o.material); });
+  });
+}
+
+/* ---------------------------- MÜŞTERİ ------------------------------- */
+function mkCustomer(){
+  const g = new THREE.Group();
+  const hue = Math.random();
+  const bodyCol = new THREE.Color().setHSL(hue, .55, .55);
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.46,0.52,1.25,16),
+    new THREE.MeshStandardMaterial({color:bodyCol, roughness:.75}));
+  body.position.y = 0.62; body.castShadow = true; g.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.42,20,16),
+    new THREE.MeshStandardMaterial({color:0xf0c39a, roughness:.7}));
+  head.position.y = 1.52; head.castShadow = true; g.add(head);
+  // gözler
+  const eMat = new THREE.MeshBasicMaterial({color:0x22141c});
+  [-0.15,0.15].forEach(x=>{
+    const e = new THREE.Mesh(new THREE.SphereGeometry(0.058,8,8), eMat);
+    e.position.set(x*1.05,1.47,0.40); g.add(e);
+  });
+  // saç
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.44,16,12,0,Math.PI*2,0,Math.PI/2),
+    new THREE.MeshStandardMaterial({color:new THREE.Color().setHSL(Math.random(),.4,.25)}));
+  hair.position.y = 1.62; hair.scale.set(1.02,0.82,1.02); g.add(hair);
+  // ağız
+  const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.17,0.035,0.03),
+    new THREE.MeshBasicMaterial({color:0x8a3a3a}));
+  mouth.position.set(0,1.30,0.41); g.add(mouth);
+  // kaşlar (normalde düz, sinirlenince çatılır)
+  const browMat = new THREE.MeshBasicMaterial({color:0x3a2418});
+  const brows = [-1,1].map(sgn=>{
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.16,0.035,0.035), browMat);
+    b.position.set(sgn*0.16, 1.60, 0.40);
+    g.add(b); return b;
+  });
+  g.userData = {head, mouth, brows, angry:false};
+  g.scale.setScalar(1.45);
+  g.position.set(6.0, -0.30, -2.45);
+  scene.add(g);
+  return g;
+}
+
+function spawnCustomer(){
+  S.customerNo++;
+  // yeni malzeme açılışı
+  let unlockedNow = null;
+  Object.keys(ING).forEach(k=>{
+    if(ING[k].unlock <= S.customerNo && !S.unlocked.includes(k)){
+      S.unlocked.push(k); unlockedNow = k;
+    }
+  });
+  if(unlockedNow){ layoutShelves(); toast('YENİ: '+ING[unlockedNow].name, '#8fe07a'); }
+
+  const rec = makeOrder();
+  S.order = rec.items;
+  S.orderName = rec.name;
+  S.step = 0;
+  S.patienceMax = 18 + S.order.length * 4.6;   // kurma + taşıma için yeterli olsun
+  S.patience = 1;
+  S.custX = 0;   // müşteri her zaman tezgahın tam ortasında durur
+  deliverRing.position.x = S.custX;
+  S.customer = mkCustomer();
+  S.custState = 'walk';
+  renderOrder();
+  document.getElementById('orderWrap').style.opacity = 1;
+}
+
+function makeOrder(){
+  const n = S.customerNo;
+  const has = k => S.unlocked.includes(k);
+  const pool = FILLERS.filter(has);
+  const cands = [];
+
+  cands.push({name:'Klasik', items:['bunB','patty','cheese','bunT'], w: n<=3 ? 6 : 1});
+  if(n >= 2)
+    cands.push({name:'Duble Köfte',
+      items:['bunB','patty','cheese','patty','cheese','bunT'], w:3});
+  if(has('lettuce') && has('tomato'))
+    cands.push({name:'Bahçe Menü',
+      items:['bunB','patty','lettuce','tomato','cheese','bunT'], w:3});
+  if(has('onion') && has('tomato'))
+    cands.push({name:'Acı Soğanlı',
+      items:['bunB','patty','onion','tomato','patty','onion','bunT'], w:3});
+  if(has('bacon'))
+    cands.push({name:'Pastırmalı Duble',
+      items:['bunB','patty','bacon','cheese','patty','bacon','cheese','bunT'], w:4});
+  if(n >= 5){
+    const k = 4 + Math.floor(Math.random() * Math.min(5, n-2));
+    const items = ['bunB']; let last = null;
+    for(let i=0;i<k;i++){
+      let c, guard = 0;
+      do{ c = pool[Math.floor(Math.random()*pool.length)]; }
+      while(c === last && pool.length > 1 && guard++ < 8);
+      items.push(c); last = c;
+    }
+    items.push('bunT');
+    cands.push({name:'Kule Burger', items, w: n >= 8 ? 5 : 2});
+  }
+
+  const total = cands.reduce((a,c)=>a+c.w, 0);
+  let r = Math.random() * total;
+  for(const c of cands){ r -= c.w; if(r <= 0) return c; }
+  return cands[0];
+}
+
+/* ---------------------------- FİZİK / KULE --------------------------- */
+function stackTopY(){
+  let y = counterTop + S.base.y;
+  S.layers.forEach(L=>{ y += L.h * (1 - (L.sq||0)); });
+  return y;
+}
+function stackTopPos(){
+  if(!S.layers.length) return {x:S.base.x, z:S.base.z};
+  const t = S.layers[S.layers.length-1];
+  return {x:t.px, z:t.pz};
+}
+
+function addLayer(key, offX, offZ, fallH, throwV=0){
+  const d = ING[key];
+  const mesh = mkIngMesh(key);
+  const top = stackTopPos();
+  const y = stackTopY() + d.h*0.5;
+  // restX/restZ: katmanın bir alttakine göre KALICI oturma sapması.
+  // Yay bu noktaya geri toplar; yani kötü yerleştirme düzelmez, sadece salınım söner.
+  const L = {mesh, ing:key, h:d.h, y, restX:offX, restZ:offZ, sq:0,
+             px: top.x + offX, pz: top.z + offZ, vx:0, vz:0, grip:d.grip};
+  mesh.position.set(L.px, y, L.pz);
+  stackGroup.add(mesh);
+  S.layers.push(L);
+  plateMesh.visible = true;
+  if(S.layers.length === 1 && S.phase === 'build')
+    setHint('İpucu: tabağı ya da tek malzemeyi tutup sallayabilirsin — sert sallarsan yamulur!');
+
+  // darbe: yüksekten bırakmak alt katmanları sarsar
+  const impact = Math.min(fallH * CFG.dropGain + Math.abs(throwV)*CFG.throwHit, 3.2);
+  const sx = Math.abs(throwV) > 0.5 ? Math.sign(throwV)
+           : offX===0 ? (Math.random()-.5) : Math.sign(offX);
+  L.vx += throwV * 0.45;               // savrulan malzeme kaymaya devam eder → kalıcı yamukluk
+  const sz = offZ===0 ? (Math.random()-.5) : Math.sign(offZ);
+  const n = S.layers.length;
+  for(let i=1;i<n-0;i++){
+    const w = i/n;
+    S.layers[i].vx += impact * 0.55 * sx * w;
+    S.layers[i].vz += impact * 0.40 * sz * w;
+  }
+  // darbe ezilmesi: üstten binen yük alttakileri bir an yassılaştırır,
+  // yumuşak malzeme (marul, domates) daha çok ezilir
+  for(let i=0;i<n-1;i++){
+    const soft = ING[S.layers[i].ing].soft;
+    const depth = 1 - (n-1-i)/n;                 // en üsttekiler daha çok yer
+    S.layers[i].sq = Math.min(CFG.squashMax*1.6,
+      S.layers[i].sq + (0.10 + impact*0.16) * soft * (0.45 + depth*0.55));
+  }
+  return L;
+}
+
+function stepPhysics(dt){
+  const n = S.layers.length;
+  if(!n) return;
+  // i=0 tabağa, üsttekiler bir alttakine yayla bağlı.
+  // Tabak hareket edince üst katmanlar geriden gelir → taşırken savrulma.
+  // Eğim, tabağa göre DEĞİL en alt katmana göre ölçülür: taşırken kulenin
+  // tümü birlikte geride kalması devrilme sayılmamalı.
+  const b0x = S.layers[0].px, b0z = S.layers[0].pz;
+  let maxSlideSeen = 0;
+  for(let i=0;i<n;i++){
+    const L = S.layers[i];
+    const bx = i>0 ? S.layers[i-1].px : S.base.x;
+    const bz = i>0 ? S.layers[i-1].pz : S.base.z;
+    const dx = L.px - (bx + L.restX), dz = L.pz - (bz + L.restZ); // dinlenme noktasından sapma
+    const ax = L.px - b0x,             az = L.pz - b0z;             // en alt katmana göre eğim
+    const above = n - i;                       // üstündeki ağırlık
+    const carry = S.phase === 'carry';
+    const k  = CFG.springK * L.grip;
+    const geff = THREE.MathUtils.clamp(1 + S.baseAy/9.8, 0.15, 2.5);
+    const tg = geff * CFG.toppleG * (0.30 + above*0.18) / Math.max(L.grip,0.35)
+               * (carry ? CFG.carryTopple : 1);
+    const dmp = CFG.damping * (carry ? CFG.carryDamp : 1);
+    // sönümleme GÖRELİ hıza uygulanır: sabit hızda taşımak eğim yaratmaz,
+    // sadece ivmelenme (ani çekiş / ani duruş) kuleyi savurur.
+    const bvx = i>0 ? S.layers[i-1].vx : S.baseV.x;
+    const bvz = i>0 ? S.layers[i-1].vz : S.baseV.z;
+    L.vx += (-dx*k + ax*tg) * dt;
+    L.vz += (-dz*k + az*tg) * dt;
+    L.vx -= (L.vx - bvx) * dmp * dt;
+    L.vz -= (L.vz - bvz) * dmp * dt;
+    if(S.grab && S.grab.L === L){
+      // parmak malzemeyi kendine çeker; üsttekiler bununla birlikte savrulur
+      L.vx += (S.grab.tx - L.px) * CFG.grabK * dt;
+      // yavaş itsen de bıraktığın yerde kalsın (statik sürtünme aşıldı)
+      const ox = L.px - bx, oz = L.pz - bz;
+      if(Math.abs(ox - L.restX) > 0.06) L.restX += (ox - L.restX) * Math.min(1, dt*4);
+      if(Math.abs(oz - L.restZ) > 0.06) L.restZ += (oz - L.restZ) * Math.min(1, dt*4);
+    }
+    L.px += L.vx * dt;
+    L.pz += L.vz * dt;
+
+    // sürtünme kaybı: alttakine göre hızlı kayan katman oturduğu yeri değiştirir
+    // → sert silkeleme sonrası kule yamuk kalır (kaygan malzeme daha çok kayar)
+    const rvx = L.vx - bvx, rvz = L.vz - bvz;
+    const rv = Math.hypot(rvx, rvz);
+    if(rv > CFG.slipVel * L.grip * Math.min(1, geff)){
+      const f = Math.min(1, (rv - CFG.slipVel*L.grip) * CFG.slipRate / L.grip * dt * 6);
+      const ox = L.px - bx, oz = L.pz - bz;
+      L.restX += (ox - L.restX) * f;
+      L.restZ += (oz - L.restZ) * f;
+    }
+
+    // bir alttakinden tamamen kayıp düştü mü
+    const slide = Math.hypot(L.px-bx, L.pz-bz);
+    if(slide > maxSlideSeen) maxSlideSeen = slide;
+    if(slide > CFG.maxSlide){ collapse(); return; }
+  }
+  // ağırlık merkezi tabağı aştı mı
+  let cx=0, cz=0;
+  S.layers.forEach(L=>{ cx+=L.px; cz+=L.pz; });
+  cx = cx/n - S.layers[0].px; cz = cz/n - S.layers[0].pz;
+  const comR = Math.hypot(cx,cz);
+  S.danger = Math.max(comR/CFG.baseHalf, maxSlideSeen/CFG.maxSlide);
+  if(comR > CFG.baseHalf){ collapse(); return; }
+
+  // ezilme: üstteki katman sayısına göre kalıcı yassılaşma + darbenin geri açılması
+  let yAcc = counterTop + S.base.y;
+  for(let i=0;i<n;i++){
+    const L = S.layers[i];
+    const above = n-1-i;
+    const geffS = THREE.MathUtils.clamp(1 + S.baseAy/9.8, 0.3, 2.2);
+    const target = Math.min(CFG.squashMax*1.3, above * ING[L.ing].soft * CFG.squashLoad * geffS);
+    L.sq += (target - L.sq) * Math.min(1, dt*5.5);
+    const hEff = L.h * (1 - L.sq);
+    L.y = yAcc + hEff*0.5;
+    yAcc += hEff;
+    // ezilen malzeme yanlara yayılır
+    L.mesh.scale.set(1 + L.sq*0.34, 1 - L.sq, 1 + L.sq*0.34);
+  }
+
+  // görsel: eğim + konum
+  for(let i=0;i<n;i++){
+    const L = S.layers[i];
+    const bx = i>0 ? S.layers[i-1].px : S.base.x;
+    const bz = i>0 ? S.layers[i-1].pz : S.base.z;
+    L.mesh.position.set(L.px, L.y, L.pz);
+    if(i === 0){
+      // en alttaki katman düz tabağın üstünde: merkezden kaçık olabilir ama eğik durmaz
+      L.mesh.rotation.z = L.mesh.rotation.x = 0;
+    } else {
+      L.mesh.rotation.z = THREE.MathUtils.clamp(-(L.px-bx)*0.5, -0.32, 0.32);
+      L.mesh.rotation.x = THREE.MathUtils.clamp( (L.pz-bz)*0.5, -0.32, 0.32);
+    }
+  }
+}
+
+/* --------------------------- DEVRİLME / TEMİZ ------------------------ */
+function collapse(){
+  if(S.collapsing) return;
+  S.collapsing = 1.3;
+  S.danger = 0;
+  document.getElementById('danger').style.opacity = 0;
+  document.getElementById('dangerTxt').style.opacity = 0;
+  S.collapsed++;
+  S.layers.forEach((L,i)=>{
+    const a = Math.random()*Math.PI*2;
+    debris.push({mesh:L.mesh,
+      vx:Math.cos(a)*(1.5+Math.random()*2.4),
+      vy:1.4+Math.random()*2.2,
+      vz:Math.sin(a)*(1.0+Math.random()*1.6),
+      rx:(Math.random()-.5)*9, rz:(Math.random()-.5)*9});
+  });
+  S.layers = [];
+  S.grab = null;
+  S.step = 0;
+  S.combo = 0;
+  shake = 0.55;
+  sfx('collapse');
+  burst(new THREE.Vector3(S.base.x, counterTop+S.base.y+0.3, S.base.z), 0xb99a86, 16, 1.8);
+  resetCarry();
+  loseLife('DEVRİLDİ!');
+  if(S.customer) leaveCustomer(true);
+}
+
+function clearStack(){
+  S.grab = null;
+  S.layers.forEach(L=>stackGroup.remove(L.mesh));
+  S.layers = [];
+}
+
+function stepDebris(dt){
+  for(let i=debris.length-1;i>=0;i--){
+    const d = debris[i], m = d.mesh;
+    d.vy -= 16*dt;
+    m.position.x += d.vx*dt; m.position.y += d.vy*dt; m.position.z += d.vz*dt;
+    m.rotation.x += d.rx*dt; m.rotation.z += d.rz*dt;
+    if(m.position.y < -2.6){ stackGroup.remove(m); debris.splice(i,1); }
+  }
+}
+
+/* ----------------------------- SERVİS ------------------------------- */
+function serve(){
+  const sat = S.patience;
+  S.combo++;
+  const mult = Math.min(CFG.comboMax, 1 + (S.combo-1)*CFG.comboStep);
+  const base = CFG.serveScore * S.order.length * (0.35 + sat*0.65);
+  const gained = Math.round(base * mult) + S.perfects * CFG.perfectBonus;
+  S.score += gained;
+  S.served++;
+  toast('+'+gained + (mult>1 ? '  x'+mult.toFixed(2).replace(/0$/,'') : ''),
+        sat>0.6 ? '#8fe07a' : '#ffd86b');
+  sfx('serve');
+  const fp = new THREE.Vector3(S.base.x, stackTopY(), S.base.z);
+  burst(fp, 0x8fe07a, 18, 2.6);
+  resetCarry();
+  // burger müşteriye "uçar"
+  const flying = S.layers.slice();
+  S.layers = [];
+  S.grab = null;
+  let t = 0;
+  const anim = ()=>{
+    t += 0.05;
+    flying.forEach((L,i)=>{
+      L.mesh.position.z -= 0.14;
+      L.mesh.position.y += 0.05 - t*0.02;
+      L.mesh.rotation.y += 0.05;
+      L.mesh.scale.multiplyScalar(0.975);
+    });
+    if(t<1.1) requestAnimationFrame(anim);
+    else flying.forEach(L=>stackGroup.remove(L.mesh));
+  };
+  anim();
+  leaveCustomer(false);
+}
+
+// taşıma fazını ve tabağı başlangıç konumuna al
+function resetCarry(){
+  S.phase = 'build';
+  S.carrying = false;
+  S.perfects = 0;
+  S.base.x = S.baseT.x = BUILD.x; S.base.z = S.baseT.z = BUILD.z;
+  S.base.y = S.baseT.y = 0; S.baseV.y = 0; S.baseAy = 0;
+  deliverRing.visible = false;
+  plateMesh.visible = false;
+  setHint('Malzemeyi tut, tezgaha sürükle, bırak');
+}
+
+const CURSES = ['#%&$@!', '@#$%&!', '#@!*%&', '%$#@!!', '&%$#@*!', '*&$#@!'];
+
+function angerCustomer(){
+  const c = S.customer; if(!c) return;
+  const u = c.userData;
+  u.angry = true;
+  // kaşlar çatılsın, ağız aşağı dönsün, surat kızarsın
+  u.brows[0].rotation.z = -0.55; u.brows[1].rotation.z = 0.55;
+  u.brows[0].position.y = u.brows[1].position.y = 1.55;
+  u.mouth.scale.set(1.5, 2.2, 1);
+  u.mouth.position.y = 1.27;
+  u.head.material.color.setHex(0xe89b7a);
+  // küfür baloncuğu
+  const r = document.getElementById('rage');
+  document.getElementById('rageTxt').textContent =
+    CURSES[Math.floor(Math.random()*CURSES.length)];
+  r.classList.add('show');
+  sfx('error');
+}
+
+function hideRage(){ document.getElementById('rage').classList.remove('show'); }
+
+function leaveCustomer(angry){
+  if(!S.customer) return;
+  if(angry){
+    S.custState = 'angry';       // önce söylenip tepinir, sonra çeker gider
+    S.angerT = 1.5;
+    angerCustomer();
+  } else {
+    S.custState = 'leave';
+    S.customer.userData.angry = false;
+  }
+  document.getElementById('orderWrap').style.opacity = 0;
+  // sonraki müşteri, mevcut müşteri sahneden çıkınca animateCustomer() içinde çağrılır
+}
+
+function missCustomer(){
+  S.missed++;
+  S.combo = 0;
+  sfx('error');
+  S.score += CFG.missScore;
+  resetCarry();
+  toast(CFG.missScore+'', '#ff6b6b');
+  clearStack();
+  leaveCustomer(true);
+}
+
+function loseLife(msg){
+  S.lives--;
+  toast(msg, '#ff6b6b');
+  document.getElementById('lives').textContent =
+    '❤'.repeat(Math.max(0,Math.min(S.lives,CFG.lives)))
+    + '♡'.repeat(Math.max(0,CFG.lives-S.lives));
+  if(S.lives<=0) setTimeout(()=>endGame('CANLAR BİTTİ'), 900);
+}
+
+/* ----------------------------- GİRDİ -------------------------------- */
+const pointer = new THREE.Vector2();
+let ptrActive = false;
+
+function toNDC(e){
+  pointer.x = (e.clientX/innerWidth)*2 - 1;
+  pointer.y = -(e.clientY/innerHeight)*2 + 1;
+}
+
+function onDown(e){
+  if(!S.playing || S.paused || S.collapsing>0) return;
+  if(S.custState !== 'wait' && S.custState !== 'walk') return;   // müşteri yokken/giderken girdi yok
+  initAudio();
+  toNDC(e);
+
+  // taşıma fazında: tabağa yakın bas → taşımaya başla
+  if(S.phase === 'carry'){
+    const p = new THREE.Vector3(S.base.x, counterTop+S.base.y+0.4, S.base.z).project(camera);
+    const d = Math.hypot((p.x-pointer.x)*innerWidth*0.5, (p.y-pointer.y)*innerHeight*0.5);
+    if(d < Math.min(innerWidth,innerHeight)*0.30){
+      S.carrying = true; ptrActive = true;
+      S.baseT.x = S.base.x; S.baseT.z = S.base.z;
+      S.grabOff = null;
+    }
+    return;
+  }
+
+  // en yakın rafı seç (ekran uzayında)
+  raycaster.setFromCamera(pointer, camera);
+  let best = null, bestD = 1e9;
+  shelfSlots.forEach(s=>{
+    if(!s.key || !s.group.visible) return;
+    const p = s.group.position.clone();
+    p.y += 0.5;
+    p.project(camera);
+    const dx = (p.x - pointer.x)*innerWidth*0.5;
+    const dy = (p.y - pointer.y)*innerHeight*0.5;
+    const d = Math.hypot(dx,dy);
+    if(d < bestD){ bestD = d; best = s; }
+  });
+  // tabak/kule rafdan daha yakınsa: tut ve salla
+  // kuledeki en yakın şeyi bul: tabak (en alt) ya da tek bir malzeme
+  if(S.layers.length){
+    const sd = v=>{ v.project(camera);
+      return Math.hypot((v.x-pointer.x)*innerWidth*0.5, (v.y-pointer.y)*innerHeight*0.5); };
+    let pick = null, pickD = sd(new THREE.Vector3(S.base.x, counterTop-0.02, S.base.z));
+    S.layers.forEach(L=>{
+      const d = sd(new THREE.Vector3(L.px, L.y, L.pz));
+      if(d < pickD){ pickD = d; pick = L; }
+    });
+    if(pickD < Math.min(innerWidth,innerHeight)*0.16 && pickD < bestD){
+      ptrActive = true;
+      if(pick){                       // tek malzemeyi tut
+        S.grab = {L:pick, off:null, tx:pick.px};
+      } else {                        // tabağı tut
+        S.carrying = true;
+        S.baseT.x = S.base.x; S.baseT.z = S.base.z;
+        S.grabOff = null;
+      }
+      moveDrag(e);
+      return;
+    }
+  }
+  if(!best || bestD > Math.min(innerWidth,innerHeight)*0.22) return;
+
+  const key = best.key;
+  const mesh = mkIngMesh(key);
+  mesh.traverse(o=>{ if(o.isMesh){ o.material = o.material.clone();
+    o.material.emissive = new THREE.Color(0x332211); } });
+  scene.add(mesh);
+  // Malzeme parmağın ALTINDA doğsun: sürükleme düzlemi kutunun derinliğinde başlar,
+  // parmak yukarı çıktıkça tezgahın derinliğine (BUILD.z) kayar.
+  const sp0 = best.group.position.clone().project(camera);
+  const sp1 = new THREE.Vector3(BUILD.x, counterTop+0.45, BUILD.z).project(camera);
+  S.drag = {mesh, key, from:best,
+            z0:best.group.position.z, z:best.group.position.z,
+            ndcY0:sp0.y, ndcY1:sp1.y, t:0};
+  ptrActive = true;
+  moveDrag(e);
+}
+
+function moveDrag(e){
+  if(S.carrying){
+    toNDC(e);
+    raycaster.setFromCamera(pointer, camera);
+    const h = new THREE.Vector3();
+    if(S.phase === 'carry'){
+      const vp = new THREE.Plane(new THREE.Vector3(0,0,1), -BUILD.z);
+      if(raycaster.ray.intersectPlane(vp, h)){
+        if(!S.grabOff) S.grabOff = {x:S.base.x - h.x, y:S.base.y - h.y};
+        S.baseT.x = THREE.MathUtils.clamp(h.x + S.grabOff.x, -1.35, 1.35);
+        S.baseT.y = THREE.MathUtils.clamp(h.y + S.grabOff.y, 0, LIFT.maxH);
+        // kaldırdıkça tabak müşteriye doğru öne uzanır
+        S.baseT.z = THREE.MathUtils.lerp(BUILD.z, LIFT.z, S.baseT.y / LIFT.maxH);
+      }
+      return;
+    }
+    if(raycaster.ray.intersectPlane(carryPlane, h)){
+      if(!S.grabOff) S.grabOff = {x:S.base.x - h.x, z:S.base.z - h.z};
+      const tx = h.x + S.grabOff.x, tz = h.z + S.grabOff.z;
+      if(S.phase === 'carry'){
+        S.baseT.x = THREE.MathUtils.clamp(tx, -1.75, 1.75);
+        S.baseT.z = THREE.MathUtils.clamp(tz, DELIVER.z-0.1, 0.62);
+      } else {
+        S.baseT.x = THREE.MathUtils.clamp(tx, BUILD.x-CFG.shakeRangeX, BUILD.x+CFG.shakeRangeX);
+        S.baseT.z = THREE.MathUtils.clamp(tz, BUILD.z-0.35, BUILD.z+0.3);
+      }
+    }
+    return;
+  }
+  if(S.grab){
+    toNDC(e);
+    raycaster.setFromCamera(pointer, camera);
+    const L = S.grab.L;
+    const pl = new THREE.Plane(new THREE.Vector3(0,0,1), -L.pz);
+    const h = new THREE.Vector3();
+    if(raycaster.ray.intersectPlane(pl, h)){
+      if(S.grab.off === null) S.grab.off = L.px - h.x;
+      S.grab.tx = THREE.MathUtils.clamp(h.x + S.grab.off, S.base.x-2.2, S.base.x+2.2);
+    }
+    return;
+  }
+  if(!S.drag) return;
+  toNDC(e);
+  raycaster.setFromCamera(pointer, camera);
+  const d = S.drag;
+  const span = (d.ndcY1 - d.ndcY0) || 1;
+  d.t = THREE.MathUtils.clamp((pointer.y - d.ndcY0) / span, 0, 1);
+  d.z = THREE.MathUtils.lerp(d.z0, BUILD.z, d.t);
+  const plane = new THREE.Plane(new THREE.Vector3(0,0,1), -d.z);
+  const hit = new THREE.Vector3();
+  if(!raycaster.ray.intersectPlane(plane, hit)) return;
+  d.tx = THREE.MathUtils.clamp(hit.x, -4.2, 4.2);
+  d.ty = THREE.MathUtils.clamp(hit.y, GRID.y, 9);
+  if(!d.init){ d.init = true; d.mesh.position.set(d.tx, d.ty, d.z); d.vx = d.vy = 0; }
+}
+
+function onMove(e){ if(ptrActive) moveDrag(e); }
+
+function onUp(e){
+  if(S.grab){ S.grab = null; ptrActive = false; return; }
+  if(S.carrying){
+    S.carrying = false; ptrActive = false;
+    // taşırken havada bırakırsan tabak tezgaha geri iner (sert iniş kuleyi sarsar)
+    if(S.phase === 'carry' && S.base.y > 0.01){ S.baseT.y = 0; S.baseT.z = BUILD.z; S.baseT.x = S.base.x; }
+    return;
+  }
+  if(!S.drag) return;
+  const dm = S.drag.mesh, key = S.drag.key;
+  scene.remove(dm);
+  ptrActive = false;
+  const dropX = dm.position.x, dropY = dm.position.y;
+  const drg = S.drag; S.drag = null;
+  const throwV = drg.vx || 0;          // bırakma anındaki yatay savrulma hızı
+
+  if(!S.playing || S.collapsing>0) return;
+  // hâlâ kutuların üstündeyken bırakıldıysa malzeme geri konur
+  if((drg.t || 0) < 0.3) return;
+  if(S.step >= S.order.length) return;
+
+  // tezgah bırakma alanı dışı → iptal
+  if(Math.abs(dropX - BUILD.x) > 1.5){ return; }
+
+  // doğru malzeme mi
+  const expected = S.order[S.step];
+  if(key !== expected){
+    toast('YANLIŞ!', '#ff6b6b');
+    sfx('error');
+    S.patience = Math.max(0, S.patience - 0.18);
+    return;
+  }
+
+  const top = stackTopPos();
+  // hızlı savurarak bırakırsan malzeme o yöne kayarak oturur
+  const offX = THREE.MathUtils.clamp(dropX - top.x + throwV*CFG.throwOff, -0.9, 0.9);
+  // ilk katman tabağa düz oturur; sonrakilerde küçük bir derinlik sapması olur
+  const offZ = S.layers.length ? (Math.random()-0.5)*0.10 : 0;
+  const fallH = Math.max(0, dropY - (stackTopY() + ING[key].h*0.5));
+
+  const L = addLayer(key, offX, offZ, fallH, throwV);
+  S.step++;
+  renderOrder();
+
+  const perfect = Math.abs(offX) < 0.15 && fallH < 0.6 && Math.abs(throwV) < 1.5;
+  if(perfect){
+    S.perfects++;
+    S.patience = Math.min(1, S.patience + 0.05);
+    toast('MÜKEMMEL!', '#8fe07a');
+    burst(new THREE.Vector3(L.px, L.y+0.2, L.pz), 0xffe27a, 14, 2.2);
+    sfx('perfect');
+  } else {
+    burst(new THREE.Vector3(L.px, L.y, L.pz), 0xcbb39a, 7, 1.2);
+    sfx('place');
+  }
+
+  if(S.step >= S.order.length){
+    S.phase = 'carry';
+    deliverRing.position.set(S.custX, counterTop + LIFT.needH + 0.05, LIFT.z);
+    deliverRing.visible = true;
+    setHint('Tabağı müşterinin kafasına kadar kaldır — yavaş, yoksa devrilir!');
+  }
+}
+
+/* ------------------------------ UI ---------------------------------- */
+function hex(c){ return '#'+c.toString(16).padStart(6,'0'); }
+
+function renderOrder(){
+  const b = document.getElementById('bubble');
+  b.innerHTML = '';
+  const head = document.createElement('div');
+  head.className = 'ohead';
+  head.textContent = S.orderName || 'Sipariş';
+  b.appendChild(head);
+  S.order.forEach((k,i)=>{
+    const row = document.createElement('div');
+    row.className = 'row' + (i<S.step ? ' done' : (i===S.step ? ' next' : ''));
+    row.innerHTML = `<span class="sw" style="background:${hex(ING[k].col)}"></span>`
+                  + `<span class="lbl">${ING[k].name}</span>`;
+    b.appendChild(row);
+  });
+}
+
+let toastTO;
+function toast(txt, col){
+  const t = document.getElementById('toast');
+  t.textContent = txt; t.style.color = col || '#fff';
+  t.classList.add('show');
+  clearTimeout(toastTO);
+  toastTO = setTimeout(()=>t.classList.remove('show'), 700);
+}
+
+function updateHUD(){
+  document.getElementById('timeVal').textContent = Math.ceil(S.time);
+  document.getElementById('scoreVal').textContent = S.score;
+  document.getElementById('timeChip').classList.toggle('warn', S.time<=15);
+  const cc = document.getElementById('comboChip');
+  if(S.combo >= 2){
+    cc.style.display = '';
+    document.getElementById('comboVal').textContent =
+      'x' + Math.min(CFG.comboMax, 1+(S.combo-1)*CFG.comboStep).toFixed(2).replace(/0$/,'');
+  } else cc.style.display = 'none';
+  const p = document.getElementById('patience');
+  p.style.width = (S.patience*100)+'%';
+  p.style.background = S.patience>0.55 ? '#5ad469' : S.patience>0.28 ? '#f5c451' : '#e8503f';
+}
+
+/* ---------------------------- OYUN DÖNGÜSÜ -------------------------- */
+let last = performance.now();
+let lastW = 0, lastH = 0;
+function loop(now){
+  const dt = Math.min((now-last)/1000, 0.033);
+  last = now;
+
+  // resize olayına güvenme: mobilde adres çubuğu / yön değişimi olayı atlayabiliyor
+  if(innerWidth !== lastW || innerHeight !== lastH){
+    lastW = innerWidth; lastH = innerHeight; resize();
+  }
+
+  if(S.playing && !S.paused){
+    S.time -= dt;
+    if(S.time<=0){ S.time=0; endGame('VARDİYA BİTTİ'); }
+
+    // tabak parmağı hız sınırıyla takip eder → ani çekişte üst katmanlar geride kalır
+    // kurarken de tabak tutulup sallanabilir (daha hızlı: sert silkelemeye izin ver)
+    const spd = S.phase==='carry' ? CFG.carrySpeed : CFG.shakeSpeed;
+    if(S.collapsing>0 || !S.layers.length){ S.baseT.x = S.base.x; S.baseT.y = S.base.y; S.baseT.z = S.base.z; }
+    {
+      const prevVy = S.baseV.y;
+      const dx = S.baseT.x - S.base.x, dy = S.baseT.y - S.base.y, dz = S.baseT.z - S.base.z;
+      const d = Math.hypot(dx,dy,dz);
+      if(d > 1e-4){
+        const stepLen = Math.min(d, spd*dt);
+        const nx = dx/d*stepLen, ny = dy/d*stepLen, nz = dz/d*stepLen;
+        S.base.x += nx; S.base.y += ny; S.base.z += nz;
+        S.baseV.x = nx/dt; S.baseV.y = ny/dt; S.baseV.z = nz/dt;
+      } else { S.baseV.x = S.baseV.y = S.baseV.z = 0; }
+      const ay = dt > 0 ? (S.baseV.y - prevVy)/dt : 0;
+      S.baseAy += (ay - S.baseAy) * Math.min(1, dt*10);   // yumuşatılmış dikey hızlanma
+    }
+
+    // taşıma: tabak müşterinin kafası hizasına kaldırıldı mı
+    if(S.phase==='carry' && S.layers.length && !S.collapsing){
+      if(S.base.y >= LIFT.needH && Math.abs(S.base.x - S.custX) < LIFT.xTol) serve();
+    }
+
+    if(S.collapsing>0){
+      S.collapsing -= dt;
+      if(S.collapsing<=0){ S.collapsing=0; }
+    } else {
+      stepPhysics(dt);
+    }
+
+    // müşteri sabrı
+    if(S.custState==='wait'){
+      S.patience -= dt / S.patienceMax;
+      if(S.patience<=0){ S.patience=0; missCustomer(); }
+    }
+    // devrilme eşiğine yaklaşınca kırmızı uyarı + titreşim
+    const dg = S.layers.length ? S.danger : 0;
+    const warn = THREE.MathUtils.clamp((dg - 0.55) / 0.35, 0, 1);
+    document.getElementById('danger').style.opacity = warn * 0.9;
+    document.getElementById('dangerTxt').style.opacity =
+      warn > 0.55 ? (0.55 + Math.sin(now/90)*0.45) : 0;
+    if(warn > 0.7) shake = Math.max(shake, 0.05 * warn);
+
+    updateHUD();
+  }
+
+  if(S.custState === 'angry' && S.customer){
+    const p = new THREE.Vector3(0, 2.15, 0.2).applyMatrix4(S.customer.matrixWorld)
+                .project(camera);
+    const r = document.getElementById('rage');
+    r.style.left = ((p.x*0.5+0.5)*innerWidth) + 'px';
+    r.style.top  = ((-p.y*0.5+0.5)*innerHeight) + 'px';
+  }
+
+  if(!S.paused){ stepDebris(dt); stepParticles(dt); }
+
+  // elde tutulan malzeme: parmağı gecikmeyle takip eder, hıza göre eğilip sallanır
+  if(S.drag && S.drag.init && !S.paused && dt > 0){
+    const d = S.drag, m = d.mesh;
+    const f = Math.min(1, dt*CFG.handFollow);
+    const nx = m.position.x + (d.tx - m.position.x)*f;
+    const ny = m.position.y + (d.ty - m.position.y)*f;
+    const ivx = (nx - m.position.x)/dt, ivy = (ny - m.position.y)/dt;
+    d.vx += (ivx - d.vx)*Math.min(1, dt*12);   // yumuşatılmış hız
+    d.vy += (ivy - d.vy)*Math.min(1, dt*12);
+    m.position.x = nx; m.position.y = ny;
+    m.position.z += (d.z - m.position.z)*f;
+    const wantZ = THREE.MathUtils.clamp(-d.vx*CFG.handTilt, -0.7, 0.7);
+    const wantX = THREE.MathUtils.clamp( d.vy*CFG.handTilt*0.5, -0.4, 0.4);
+    m.rotation.z += (wantZ - m.rotation.z)*Math.min(1, dt*10);
+    m.rotation.x += (wantX - m.rotation.x)*Math.min(1, dt*10);
+  }
+  if(!S.paused){ animateCustomer(dt); animateShelves(now); }
+
+  // tabak kulenin altında
+  plateMesh.position.x = S.base.x;
+  plateMesh.position.z = S.base.z;
+  plateMesh.position.y = 0.11 + S.base.y;
+  if(deliverRing.visible){
+    const k = 1 + Math.sin(now/220)*0.09;
+    deliverRing.scale.set(k,k,1);
+    deliverRing.material.opacity = 0.72 + Math.sin(now/220)*0.22;
+  }
+
+  // kamera: kule uzadıkça geri çekil
+  const h = stackTopY();
+  const grow = Math.max(0, h-1.2);
+  const zoom = 1;   // tabağı taşırken sahne yaklaşır
+  const wantZ = (baseZ + grow*0.75) * zoom;
+  const wantY = (baseY + grow*0.60) * zoom;
+  camZ += (wantZ-camZ)*Math.min(1,dt*3);
+  camY += (wantY-camY)*Math.min(1,dt*3);
+  camTarget.y += ((0.05 + h*0.55) - camTarget.y)*Math.min(1,dt*3);
+  // güvenlik ağı: kamera değerleri bir şekilde bozulursa sahne tamamen kararmasın
+  if(!isFinite(camZ) || !isFinite(camY)){ camZ = baseZ; camY = baseY; }
+  if(!isFinite(camTarget.x) || !isFinite(camTarget.y)) camTarget.set(0, 1.35, 0);
+
+  camTarget.x += (S.base.x*0.35 - camTarget.x)*Math.min(1,dt*3);
+  camera.position.set(0, camY, camZ);
+  camera.lookAt(camTarget);
+  if(shake > 0.001){
+    shake *= Math.pow(0.02, dt);
+    camera.position.x += (Math.random()-.5)*shake;
+    camera.position.y += (Math.random()-.5)*shake;
+  }
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+
+function animateCustomer(dt){
+  const c = S.customer; if(!c) return;
+  if(S.custState==='walk'){
+    c.position.x += (S.custX - c.position.x) * Math.min(1,dt*4);
+    c.position.z += (-2.45 - c.position.z) * Math.min(1,dt*4);
+    c.rotation.y = Math.sin(performance.now()/120)*0.08;
+    if(Math.abs(c.position.x - S.custX) < 0.12){
+      c.position.x = S.custX; S.custState='wait'; c.rotation.y=0; }
+  } else if(S.custState==='wait'){
+    c.position.y = -0.30 + Math.abs(Math.sin(performance.now()/380))*0.05;
+    if(S.patience<0.3) c.rotation.z = Math.sin(performance.now()/70)*0.045;
+  } else if(S.custState==='angry'){
+    S.angerT -= dt;
+    const t = performance.now();
+    c.rotation.z = Math.sin(t/45)*0.10;                 // titreyerek söylenir
+    c.rotation.y = Math.sin(t/70)*0.12;
+    c.position.y = -0.30 + Math.abs(Math.sin(t/90))*0.12; // tepinme
+    if(S.angerT <= 0){
+      c.rotation.z = 0;
+      hideRage();
+      S.custState = 'leave';
+    }
+  } else if(S.custState==='leave'){
+    const dir = c.userData.angry ? -1 : 1;
+    c.position.x += dir*5.5*dt;
+    c.position.y -= 0.2*dt;
+    c.rotation.y += dir*2.5*dt;
+    if(Math.abs(c.position.x) > 8){
+      scene.remove(c); S.customer=null; S.custState='none';
+      if(S.playing && S.lives>0) spawnCustomer();
+    }
+  }
+}
+
+function animateShelves(now){
+  const need = S.playing && S.phase === 'build' ? S.order[S.step] : null;
+  shelfSlots.forEach((s,i)=>{
+    if(!s.item) return;
+    const isNext = s.key === need;
+    const pulse = isNext ? (0.5 + Math.sin(now/180)*0.5) : 0;
+    s.item.position.y = s.idleY + Math.sin(now/600 + i)*0.03 + pulse*0.10;
+    s.item.rotation.y += isNext ? 0.012 : 0.004;
+    const k = 1 + pulse*0.07;
+    s.item.scale.setScalar((s.baseScale||0.55) * k);
+    if(s.mats) s.mats.forEach(mm=>{
+      if(!mm.emissive) return;
+      mm.emissive.setRGB(pulse*0.28, pulse*0.20, 0);
+    });
+    if(s.binMats){
+      s.binMats[0].color.setHex(isNext ? 0x8a5c9e : 0x6d4a7a);
+      s.binMats[1].color.setHex(isNext ? 0xd9a6ea : 0x9a72ab);
+    }
+  });
+}
+
+/* --------------------------- EFEKT / SES ---------------------------- */
+function setHint(txt){
+  const h = document.getElementById('hint');
+  h.textContent = txt; h.style.opacity = .75;
+}
+
+const PGEO = new THREE.SphereGeometry(0.075, 6, 5);
+function burst(pos, color, n, power){
+  const mat = new THREE.MeshBasicMaterial({color});
+  for(let i=0;i<n;i++){
+    const m = new THREE.Mesh(PGEO, mat);
+    m.position.copy(pos);
+    const a = Math.random()*Math.PI*2, r = 0.5+Math.random();
+    scene.add(m);
+    particles.push({mesh:m, life:0.55+Math.random()*0.35, t:0,
+      vx:Math.cos(a)*r*power, vy:(0.9+Math.random()*1.2)*power, vz:Math.sin(a)*r*power,
+      s:0.7+Math.random()*0.8});
+  }
+}
+function stepParticles(dt){
+  for(let i=particles.length-1;i>=0;i--){
+    const p = particles[i];
+    p.t += dt; p.vy -= 9*dt;
+    p.mesh.position.x += p.vx*dt;
+    p.mesh.position.y += p.vy*dt;
+    p.mesh.position.z += p.vz*dt;
+    const k = Math.max(0, 1 - p.t/p.life) * p.s;
+    p.mesh.scale.setScalar(k);
+    if(p.t >= p.life){ scene.remove(p.mesh); particles.splice(i,1); }
+  }
+}
+
+let actx = null;
+function initAudio(){
+  if(actx) return;
+  try{ actx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ actx = null; }
+}
+function tone(freq, dur, type, gain, slideTo){
+  if(!actx) return;
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type || 'sine';
+  o.frequency.setValueAtTime(freq, actx.currentTime);
+  if(slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, actx.currentTime+dur);
+  g.gain.setValueAtTime(gain||0.13, actx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0008, actx.currentTime+dur);
+  o.connect(g); g.connect(actx.destination);
+  o.start(); o.stop(actx.currentTime+dur+0.02);
+}
+let muted = false;
+function sfx(kind){
+  if(!actx || muted) return;
+  switch(kind){
+    case 'place':   tone(220, 0.09, 'triangle', 0.10, 150); break;
+    case 'perfect': tone(660, 0.10, 'square', 0.07);
+                    setTimeout(()=>tone(990, 0.13, 'square', 0.06), 70); break;
+    case 'serve':   [523,659,784,1046].forEach((f,i)=>
+                      setTimeout(()=>tone(f, 0.14, 'triangle', 0.10), i*70)); break;
+    case 'error':   tone(180, 0.16, 'sawtooth', 0.09, 90); break;
+    case 'collapse':tone(140, 0.45, 'sawtooth', 0.14, 45); break;
+  }
+}
+
+/* ------------------------------ AKIŞ -------------------------------- */
+function startGame(){
+  clearStack();
+  debris.forEach(d=>stackGroup.remove(d.mesh)); debris=[];
+  if(S.customer){ scene.remove(S.customer); S.customer=null; }
+  Object.assign(S, {playing:true, time:CFG.shiftTime, score:0, lives:CFG.lives,
+    served:0, missed:0, collapsed:0, customerNo:0, step:0, order:[],
+    patience:1, custState:'none', collapsing:0, drag:null,
+    combo:0, perfects:0, carrying:false, paused:false, phase:'build', custX:0,
+    unlocked:['bunB','patty','cheese','bunT']});
+  S.base.x = S.baseT.x = BUILD.x; S.base.z = S.baseT.z = BUILD.z;
+  S.base.y = S.baseT.y = 0; S.baseV.y = 0; S.baseAy = 0;
+  plateMesh.visible = false; deliverRing.visible = false;
+  shake = 0;
+  hideRage();
+  layoutShelves();
+  document.getElementById('lives').textContent = '❤'.repeat(CFG.lives);
+  document.getElementById('startScreen').classList.add('hide');
+  document.getElementById('endScreen').classList.add('hide');
+  document.getElementById('pauseScreen').classList.add('hide');
+  setHint('Malzemeyi tut, tezgaha sürükle, bırak');
+  updateHUD();
+  spawnCustomer();
+}
+
+function endGame(title){
+  if(!S.playing) return;
+  S.playing = false;
+  S.danger = 0;
+  document.getElementById('danger').style.opacity = 0;
+  document.getElementById('dangerTxt').style.opacity = 0;
+  const best = getBest(), isNew = S.score > best;
+  if(isNew) setBest(S.score);
+  document.getElementById('bestLine').textContent =
+    isNew && S.score>0 ? '🏆 YENİ REKOR!' : 'Rekor: ' + Math.max(best, S.score);
+  document.getElementById('endTitle').textContent = title;
+  document.getElementById('finalScore').textContent = S.score;
+  document.getElementById('endStats').textContent =
+    `${S.served} servis · ${S.missed} kaçan müşteri · ${S.collapsed} devrilme`;
+  document.getElementById('endScreen').classList.remove('hide');
+  hideRage();
+  document.getElementById('orderWrap').style.opacity = 0;
+}
+
+/* ----------------------------- BAĞLAMA ------------------------------ */
+function resize(){
+  camera.aspect = innerWidth/innerHeight;
+  camera.fov = CAM_FOV;
+  camera.updateProjectionMatrix();
+  computeCamBase();
+  renderer.setSize(innerWidth, innerHeight);
+}
+
+initScene();
+addEventListener('resize', resize);
+addEventListener('pointerdown', onDown);
+addEventListener('pointermove', onMove);
+addEventListener('pointerup', onUp);
+addEventListener('pointercancel', onUp);
+document.getElementById('startBtn').onclick = startGame;
+document.getElementById('againBtn').onclick = startGame;
+
+/* ---- rekor / ses / duraklatma ---- */
+function getBest(){ try{ return +localStorage.getItem('burgerStackBest') || 0; }catch(e){ return 0; } }
+function setBest(v){ try{ localStorage.setItem('burgerStackBest', v); }catch(e){} }
+function showStartBest(){ const b=getBest(); document.getElementById('startBest').textContent = b ? 'Rekor: '+b : ''; }
+showStartBest();
+
+function setPaused(on){
+  if(!S.playing) return;
+  S.paused = on;
+  if(on){
+    // elde tutulan malzemeyi / taşımayı bırak
+    if(S.drag){ scene.remove(S.drag.mesh); S.drag = null; }
+    S.carrying = false; S.grab = null; ptrActive = false;
+  }
+  document.getElementById('pauseScreen').classList.toggle('hide', !on);
+}
+document.getElementById('pauseBtn').addEventListener('pointerdown', e=>{ e.stopPropagation(); setPaused(true); });
+document.getElementById('resumeBtn').onclick = ()=>{ last = performance.now(); setPaused(false); };
+document.getElementById('muteBtn').addEventListener('pointerdown', e=>{
+  e.stopPropagation(); muted = !muted;
+  e.currentTarget.textContent = muted ? '🔇' : '🔊';
+});
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden) setPaused(true); });
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
