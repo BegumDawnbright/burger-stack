@@ -349,6 +349,7 @@ function initScene(){
 
   stackGroup = new THREE.Group(); scene.add(stackGroup);
 
+  aimInit();
   raycaster = new THREE.Raycaster();
   dragPlane  = new THREE.Plane(new THREE.Vector3(0,0,1), -BUILD.z); // dikey: malzeme sürükleme
   carryPlane = new THREE.Plane(new THREE.Vector3(0,1,0), -counterTop); // yatay: tabak taşıma
@@ -1179,6 +1180,16 @@ function onDown(e){
   // parmak yukarı çıktıkça tezgahın derinliğine (BUILD.z) kayar.
   const sp0 = best.group.position.clone().project(camera);
   const sp1 = new THREE.Vector3(BUILD.x, counterTop+0.45, BUILD.z).project(camera);
+  if(S.mode === 'throw'){
+    // FIRLAT: malzeme kutunun üstünde durur, parmakla nişan alınır
+    const a = best.group.position;
+    mesh.position.set(a.x, a.y + 0.45, a.z);
+    S.drag = {mesh, key, from:best, atis:true,
+              anchor:{x:a.x, y:a.y + 0.45, z:a.z},
+              sx:e.clientX, sy:e.clientY, aim:null, t:1};
+    ptrActive = true;
+    return;
+  }
   S.drag = {mesh, key, from:best,
             z0:best.group.position.z, z:best.group.position.z,
             ndcY0:sp0.y, ndcY1:sp1.y, t:0};
@@ -1227,6 +1238,20 @@ function moveDrag(e){
     }
     return;
   }
+  if(S.drag && S.drag.atis){
+    const d = S.drag;
+    d.aim = aimVel(e.clientX - d.sx, e.clientY - d.sy);
+    if(d.aim){
+      aimShow(d.anchor.x, d.anchor.y, d.anchor.z, d.aim.vx, d.aim.vy);
+      // geri çekme hissi: malzeme savurma yönünün tersine hafifçe kayar
+      d.mesh.position.set(d.anchor.x - d.aim.vx*0.03,
+                          d.anchor.y - d.aim.vy*0.02, d.anchor.z);
+    } else {
+      aimHide();
+      d.mesh.position.set(d.anchor.x, d.anchor.y, d.anchor.z);
+    }
+    return;
+  }
   if(!S.drag) return;
   toNDC(e);
   raycaster.setFromCamera(pointer, camera);
@@ -1252,6 +1277,14 @@ function onUp(e){
     if(S.phase === 'carry' && S.base.y > 0.01){ S.baseT.y = 0; S.baseT.z = BUILD.z; S.baseT.x = S.base.x; }
     return;
   }
+  if(S.drag && S.drag.atis){
+    const d = S.drag; S.drag = null; ptrActive = false;
+    aimHide();
+    if(!d.aim || !S.playing || S.collapsing>0){ scene.remove(d.mesh); return; }
+    d.mesh.position.set(d.anchor.x, d.anchor.y, d.anchor.z);
+    firlat(d.key, d.mesh, d.aim.vx, d.aim.vy);
+    return;
+  }
   if(!S.drag) return;
   const dm = S.drag.mesh, key = S.drag.key;
   ptrActive = false;
@@ -1264,12 +1297,6 @@ function onUp(e){
   // hâlâ kutuların üstündeyken bırakıldıysa malzeme geri konur
   if((drg.t || 0) < 0.3) return;
 
-  // FIRLAT modu: savurup bıraktığında malzeme havada uçar
-  if(S.mode === 'throw'){
-    const hiz = Math.hypot(drg.vx||0, drg.vy||0);
-    if(hiz > 1.2){ firlat(key, dm, drg.vx, drg.vy); return; }
-  }
-  if(S.mode === 'throw') scene.remove(dm);
   yerlestir(key, dropX, dropY, throwV);
 }
 
@@ -1464,7 +1491,7 @@ function loop(now){
   if(!S.paused){ stepDebris(dt); stepParticles(dt); stepFlying(dt); }
 
   // elde tutulan malzeme: parmağı gecikmeyle takip eder, hıza göre eğilip sallanır
-  if(S.drag && S.drag.init && !S.paused && dt > 0){
+  if(S.drag && S.drag.init && !S.drag.atis && !S.paused && dt > 0){
     const d = S.drag, m = d.mesh;
     const f = Math.min(1, dt*CFG.handFollow);
     const nx = m.position.x + (d.tx - m.position.x)*f;
@@ -1574,6 +1601,41 @@ function animateShelves(now){
 }
 
 /* ---------------------------- FIRLATMA ------------------------------ */
+// Nişan yörüngesi: fırlatmadan önce malzemenin izleyeceği yol noktalarla gösterilir
+let aimDots = [];
+function aimInit(){
+  const g = new THREE.SphereGeometry(0.055, 6, 5);
+  const m = new THREE.MeshBasicMaterial({color:0xffd86b, transparent:true, opacity:.75});
+  for(let i=0;i<16;i++){
+    const d = new THREE.Mesh(g, m.clone());
+    d.visible = false; scene.add(d); aimDots.push(d);
+  }
+}
+function aimShow(x0, y0, z0, vx, vy){
+  const dt = 0.055;
+  let x = x0, y = y0, v = vy;
+  for(let i=0;i<aimDots.length;i++){
+    x += vx*dt; v -= FLY_G*dt; y += v*dt;
+    const d = aimDots[i];
+    d.position.set(x, y, z0 + (BUILD.z - z0) * Math.min(1, i/8));
+    d.visible = y > -2.2;
+    d.material.opacity = 0.75 * (1 - i/aimDots.length);
+    const k = 1 - i/(aimDots.length*1.6);
+    d.scale.setScalar(Math.max(0.25, k));
+  }
+}
+function aimHide(){ aimDots.forEach(d=>d.visible=false); }
+
+// Ekrandaki savurma hareketini fırlatma hızına çevirir
+function aimVel(dxPix, dyPix){
+  const len = Math.hypot(dxPix, dyPix);
+  if(len < 12) return null;
+  const hiz = THREE.MathUtils.clamp(len * 0.055, 3, 13);
+  const dirX = dxPix/len, dirY = -dyPix/len;      // ekranda yukarı = +y
+  if(dirY < 0.15) return null;                    // aşağı savurma fırlatma değil
+  return {vx: dirX*hiz*0.75, vy: dirY*hiz, hiz};
+}
+
 // FIRLAT modunda malzeme savrulup bırakılır, havada uçar ve kuleye iner.
 const FLY_G = 20;                 // fırlatma yerçekimi
 let flying = [];
@@ -1581,8 +1643,8 @@ let flying = [];
 function firlat(key, mesh, vx, vy){
   // Parmak hızı doğrudan aktarılırsa malzeme tezgahı aşıyor:
   // yatayı kıs, dikeyi biraz düşür ve ikisini de sınırla.
-  const hx = THREE.MathUtils.clamp((vx||0) * 0.45, -3.2, 3.2);
-  const hy = THREE.MathUtils.clamp((vy||0) * 0.80,  0.5, 10.5);
+  const hx = THREE.MathUtils.clamp(vx||0, -6, 6);
+  const hy = THREE.MathUtils.clamp(vy||0, 0.5, 14);
   flying.push({key, mesh, vx:hx, vy:hy, z:mesh.position.z,
                spin:(Math.random()-0.5)*7});
   sfx('place');
@@ -1604,8 +1666,12 @@ function stepFlying(dt){
     // Yine de tam ortayı tutturmak önemli, çünkü sapma kuleye kaçık oturuyor.
     if(f.vy < 0 && m.position.y <= hedefY && Math.abs(m.position.x - BUILD.x) < 2.2){
       scene.remove(m); flying.splice(i,1);
-      const dusus = Math.min(2.4, (f.vy*f.vy)/(2*FLY_G));   // iniş hızı = darbe
-      yerlestir(f.key, m.position.x, hedefY + dusus, f.vx);
+      // Fırlatma zaten zor: iniş darbesini ve sapmayı yumuşat, yoksa 2 katmanlı
+      // kule bile ilk isabette deviriliyor.
+      const dusus = Math.min(1.1, (f.vy*f.vy)/(2*FLY_G) * 0.5);
+      const top = stackTopPos();
+      const inisX = THREE.MathUtils.clamp(m.position.x, top.x - 0.55, top.x + 0.55);
+      yerlestir(f.key, inisX, hedefY + dusus, f.vx * 0.35);
       continue;
     }
     if(m.position.y < -2.6 || Math.abs(m.position.x) > 5.5){
@@ -1699,7 +1765,7 @@ function startGame(){
   document.getElementById('endScreen').classList.add('hide');
   document.getElementById('pauseScreen').classList.add('hide');
   setHint(S.mode === 'throw'
-    ? 'Malzemeyi tut ve tezgaha doğru SAVUR — havada uçup kuleye iner'
+    ? 'Kutuya bas, burgere doğru savur ve bırak — noktalar nereye düşeceğini gösterir'
     : 'Malzemeyi tut, tezgaha sürükle, bırak');
   flying.forEach(f=>scene.remove(f.mesh)); flying = [];
   updateHUD();
