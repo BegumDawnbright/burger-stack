@@ -226,9 +226,12 @@ const CFG = {
   wrongPenalty: 18,     // fişte olmayan / fazladan konan her malzeme     // mükemmel yerleştirme başına
   comboStep : 0.25,     // her ardışık serviste çarpan artışı
   comboMax  : 3.0,
-  carrySpeed: 7.0,      // tabak parmağı yakından takip etsin; savrulma hızdan değil İVMEDEN doğar
+  carrySpeed: 4.5,      // tabak parmağı yakından takip etsin; savrulma hızdan değil İVMEDEN doğar
   carryDamp : 1.10,      // taşırken sönümleme (düşük = kaldırırken daha çok salınır)
   carryTopple:0.95,      // taşırken devirici tork çarpanı
+  carryGeffMax:1.55,    // taşırken dikey ivmenin torku büyütme TAVANI.
+                        // Parmak hızlı kalkınca baseAy ~50'ye fırlıyor; tavan
+                        // yoksa tork 2.5 katına çıkıp kuleyi kaldırır kaldırmaz deviriyor.
   shakeSpeed: 7.5,      // kurarken tabağı elle sallama hızı (hızlı → sert savrulma)
   shakeRangeX: 1.15,    // tahtada sağa-sola ne kadar kaydırılabilir
   grabK     : 150,
@@ -245,7 +248,10 @@ const THROW_HOLD = {y:0.95, z:0.55};
 const BUILD   = {x:0, z:0.35};   // burgerin kurulduğu tahta
 const DELIVER = {z:-1.05, r:0.8};// teslim noktası (müşterinin x'i)
 // müşterinin kafası: -0.30 + 1.52*1.45 ≈ 1.90. Tabak buraya kaldırılmalı.
-const LIFT = {maxH:2.35, needH:1.45, z:-1.35, xTol:0.6};
+// z: kaldırırken tabak müşteriye doğru ne kadar UZANIR. Eskiden -1.35'ti;
+// kaldırma hareketi aynı anda 1.7 birimlik ileri savrulma da demek oluyordu ve
+// düzgün kurulmuş kule bile daha yükselmeden deviriliyordu.
+const LIFT = {maxH:2.35, needH:1.45, z:-0.55, xTol:0.6};
 
 /* ---------------------------- MALZEMELER ---------------------------- */
 // grip: yüksek = tutunur / kaygan değil. unlock: kaçıncı müşteride açılır.
@@ -969,7 +975,8 @@ function stepPhysics(dt){
     const above = n - i;                       // üstündeki ağırlık
     const carry = S.phase === 'carry';
     const k  = CFG.springK * L.grip;
-    const geff = THREE.MathUtils.clamp(1 + S.baseAy/9.8, 0.15, 2.5);
+    const geff = THREE.MathUtils.clamp(1 + S.baseAy/9.8, 0.15,
+                   carry ? CFG.carryGeffMax : 2.5);
     const tg = geff * CFG.toppleG * (0.30 + above*0.18) / Math.max(L.grip,0.35)
                * (carry ? CFG.carryTopple : 1);
     const dmp = CFG.damping * (carry ? CFG.carryDamp : 1);
